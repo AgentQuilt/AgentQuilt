@@ -1,6 +1,6 @@
 ---
 name: self-curate
-description: Route what this session learned into the vault's memory zones (session log, decision log, open questions, executive notes, living docs, skills, hindsight). Trigger on "wrap up", "save this", "remember this", "update the decision log/open questions"; after a decision settles or a correction worth keeping; or when the curate journal has 5+ unprocessed entries.
+description: Route what this session learned into the vault's memory zones (session log, decision log, open questions, executive notes, living docs, skills, hindsight). Trigger on "wrap up", "save this", "remember this", "update the decision log/open questions"; after a decision settles or a correction worth keeping; or when the curate journal reaches the threshold in AGENTS.md (Self-curation).
 user-invocable: true
 disable-model-invocation: false
 ---
@@ -160,7 +160,7 @@ Run this skill (without being asked) when:
 - User says "wrap up", "session end", "save this", "remember this", "update the decision log", "update open questions".
 - A correction just landed and the underlying lesson is worth keeping.
 - A decision just got settled in conversation — decisions are written down the day they're made (`../AgentQuilt-Vault/Home.md` working agreement).
-- A multi-step task just finished and `.claude/.curate/journal.jsonl` has 5+ entries.
+- A multi-step task just finished and `.claude/.curate/journal.jsonl` has reached the threshold in AGENTS.md (Self-curation, 15 entries).
 
 Do **not** run on:
 - Single-turn lookups, read-only exploration, or planning conversations that settled nothing.

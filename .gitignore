@@ -8,3 +8,6 @@
 
 # factory branch: the factory files are tracked here; main keeps them ignored
 __pycache__/
+
+# review prompts and outputs (codex-review)
+temp/
