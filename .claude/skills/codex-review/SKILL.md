@@ -39,4 +39,4 @@ When Codex and the in-house `reviewer` both ran, record per finding: Codex-only 
 
 ## Limits
 
-The artefact is the tracked diff from the merge-base of the current checkout; untracked files stop the preflight (exit 2, no round spent), and folds are commits. The gate greps text; it cannot tell a real P1 from the reviewer writing "no P1", so that case fails closed and needs a human read.
+The artefact is the tracked diff from the merge-base of the current checkout; untracked files stop the preflight (exit 2, no round spent), and folds are commits. The gate greps line-anchored tags (`^P1 `), so prose such as "no P1" does not trip it; a finding written off-template is invisible to the gate and needs a human read.

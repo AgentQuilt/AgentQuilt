@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # scrub-gate
 
-The rule is AGENTS.md, Provenance boundary. The pattern list is vault data (`V=../AgentQuilt-Vault`, `$V/30-research/2026-08-23-release-1-compliance.md`, the pre-tag grep gate line); the script reads it at run time, so this repo never carries the words.
+The rule is AGENTS.md, Provenance boundary. The pattern list is vault data (`$V` as defined in AGENTS.md, `$V/30-research/2026-08-23-release-1-compliance.md`, the pre-tag grep gate line); the script reads it at run time, so this repo never carries the words.
 
 ## Procedure
 

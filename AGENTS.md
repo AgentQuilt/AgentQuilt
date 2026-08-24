@@ -1,6 +1,6 @@
 # AGENTS.md — the agent guide for the AgentQuilt build repo
 
-Read this first, every session. `CLAUDE.md` is a thin pointer to this file plus Claude Code wiring; where the two disagree, AGENTS.md wins. Paths below use `V=../AgentQuilt-Vault` for the sibling vault.
+Read this first, every session. `CLAUDE.md` is a thin pointer to this file plus Claude Code wiring; where the two disagree, AGENTS.md wins. Paths below use `$V` for the sibling vault: `V=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/../AgentQuilt-Vault` (resolves from the main checkout and from wave worktrees).
 
 ## What AgentQuilt is
 

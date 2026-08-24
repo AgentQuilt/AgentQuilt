@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # catchup
 
-`V=../AgentQuilt-Vault`. Read, in order, and change nothing:
+`$V` as defined in AGENTS.md. Read, in order, and change nothing:
 
 1. `AGENTS.md`, end to end.
 2. `head -40 $V/90-meta/decision-log.md` and `$V/90-meta/open-questions.md`.

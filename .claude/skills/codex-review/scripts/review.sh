@@ -23,9 +23,9 @@ render() {  # $1 template, $2 artefact file, $3 context file, $4 kind (diff|plan
 gate() {  # $1 output file, $2 codex exit code -> prints VERDICT line; any doubt is FAIL
   if [ "$2" -ne 0 ]; then echo "VERDICT: FAIL (codex exit $2; see error taxonomy in SKILL.md)"
   elif [ ! -s "$1" ]; then echo "VERDICT: FAIL (empty output)"
-  elif ! grep -Eq '(^|[^A-Za-z0-9])P[123]([^0-9]|$)|^NO FINDINGS$' "$1" || ! grep -Eq '^VERDICT: (PASS|FAIL)' "$1"; then
+  elif ! grep -Eq '^P[123] |^NO FINDINGS$' "$1" || ! grep -Eq '^VERDICT: (PASS|FAIL)' "$1"; then
     echo "VERDICT: FAIL (verification failure: needs a severity tag or NO FINDINGS, plus a verdict line)"
-  elif grep -Eq '(^|[^A-Za-z0-9])P1([^0-9]|$)|^VERDICT: FAIL' "$1"; then echo "VERDICT: FAIL (P1 present)"
+  elif grep -Eq '^P1 |^VERDICT: FAIL' "$1"; then echo "VERDICT: FAIL (P1 present)"
   else echo "VERDICT: PASS"; fi
 }
 

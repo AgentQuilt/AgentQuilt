@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # handoff
 
-`V=../AgentQuilt-Vault`; handoffs live in `$V/90-meta/handoffs/`. Infer before asking: git state, the session log and the decision-log head answer most questions.
+`$V` as defined in AGENTS.md; handoffs live in `$V/90-meta/handoffs/`. Infer before asking: git state, the session log and the decision-log head answer most questions.
 
 ## Save
 
