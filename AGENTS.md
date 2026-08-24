@@ -95,7 +95,7 @@ Models per D4 (owner, 2026-08-24): `fable` for the judgment roles (architect, re
 
 ## Self-curation
 
-The repo journals its own work and folds it back into the vault. `.claude/hooks/post-turn-journal.py` (Stop) journals substantial turns to `.claude/.curate/journal.jsonl`; at 15 entries it spawns `.claude/hooks/run-curate.sh`, a detached headless `/self-curate` with a 60-minute cooldown (also fired by SessionEnd and PreCompact). That headless run is the one sanctioned unattended writer in this setup: it runs with permissions bypassed and may edit vault notes with nobody watching. The `self-curate` skill routes findings to the vault's memory zones; hindsight writes need user confirmation. Run it by hand anytime: `/self-curate`.
+The repo journals its own work and folds it back into the vault. `.claude/hooks/post-turn-journal.py` (Stop) journals substantial turns to `.claude/.curate/journal.jsonl`; at 15 entries it spawns `.claude/hooks/run-curate.sh`, a detached headless `/self-curate` with a 60-minute cooldown (also fired by SessionEnd and PreCompact). That headless run is the one sanctioned unattended writer in this setup: it runs with permissions bypassed and may edit vault notes with nobody watching. The `self-curate` skill records memory (session log, decision log, open questions; hindsight writes need user confirmation), flags stale docs, and edits no factory file: a proposed change to a skill, agent, rule, this file or `REVIEW.md` is an entry in `$V/90-meta/suggestions.md`, which `curate-fold` (Fable, at a phase boundary) decides and routes through the wave loop (D5, 2026-08-24). Run it by hand anytime: `/self-curate`.
 
 ## Provenance boundary — this repo goes public
 

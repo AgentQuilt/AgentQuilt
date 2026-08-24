@@ -89,7 +89,7 @@ touch "$RUNNING_FLAG"
   cd "$PROJECT_DIR" 2>/dev/null || exit 0
   CLAUDE_SELF_CURATE_RUNNING=1 \
     "$CLAUDE_BIN" \
-      --print "/self-curate (triggered by: ${REASON})" \
+      --print "/self-curate (triggered by: ${REASON}). Memory lane only: edit no file under .claude/, AGENTS.md or REVIEW.md, and commit nothing in this repo; a proposed factory change is an entry in the vault suggestions file." \
       --model "${AGENTQUILT_CURATE_MODEL:-claude-opus-5}" \
       --permission-mode bypassPermissions \
       --output-format text \

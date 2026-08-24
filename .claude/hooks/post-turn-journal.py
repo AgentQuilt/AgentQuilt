@@ -28,6 +28,7 @@ TEST_RE = re.compile(
     r"\b(pytest|ruff|pyright|mypy|npm\s+(?:run\s+)?(?:test|lint)|tsc\s+-b)\b"
 )
 GIT_RE = re.compile(r"\bgit\s+(commit|push|reset|checkout|merge|rebase)\b")
+# Corrections are counted only; /self-curate reads the transcript and files the lesson as a suggestion.
 CORRECTION_RE = re.compile(
     r"\b(no|stop|don'?t|wrong|incorrect|undo|that's not)\b", re.IGNORECASE
 )
