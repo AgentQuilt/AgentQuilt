@@ -20,7 +20,7 @@ Judges an artefact against the three REVIEW.md axes and states a verdict. It dec
 3. Architecture: apply each `.claude/rules/architecture.md` check by name. Done: each failing check is a P1 with `file:line` and the kind.
 4. Simplicity: apply the REVIEW.md signals; skip what ruff, Biome and tsc enforce. Done: each finding has a severity per REVIEW.md, at most five P3s listed.
 5. Re-review (round N>1): P1 and P2 only, no new nits. Done: each prior finding marked resolved, partial or open.
-6. Return the report. Done: it ends with one `VERDICT:` line.
+6. Return the report to the orchestrator's fold-and-re-gate step (AGENTS.md, canonical loop). Done: it ends with one `VERDICT:` line.
 
 ## Rules applied
 

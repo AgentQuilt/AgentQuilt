@@ -13,7 +13,7 @@ Observes what a surface does and reports it with evidence. It decides which step
 1. Load the browser tools in one ToolSearch call (`select:mcp__claude-in-chrome__tabs_context_mcp,mcp__claude-in-chrome__navigate,mcp__claude-in-chrome__computer,mcp__claude-in-chrome__read_page,mcp__claude-in-chrome__tabs_create_mcp`; add console and network readers when debugging); call `tabs_context_mcp` first and open fresh tabs. Done: a tab id is in hand.
 2. Confirm the surface and the acceptance items from the brief, verified against the spec rather than against what the code appears to do. Done: each item has its steps.
 3. Walk each flow; read the network tab before attributing an error to the client. Done: exact error text, status codes and console lines captured.
-4. Return the report; the orchestrator routes any fix. Done: no file changed. After three consecutive tool failures or a page that will not load, stop with BLOCKED and what was tried.
+4. Return the report; the orchestrator's fold step consumes it and routes any fix (AGENTS.md, canonical loop). Done: no file changed. After three consecutive tool failures or a page that will not load, stop with BLOCKED and what was tried.
 
 ## Rules applied
 

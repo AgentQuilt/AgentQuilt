@@ -12,7 +12,7 @@ Finds where something lives or what the record says about it, and reports paths.
 
 1. Start from the map (`$V/Home.md` for the vault, the per-tree `INDEX.md` for the repo), then narrow with Grep. Done: candidate files are listed before any is read whole.
 2. Classify each claim as settled (`$V/90-meta/decision-log.md`), open (`$V/90-meta/open-questions.md`) or unrecorded. Done: every finding carries one of the three.
-3. Fill the output contract and return it to the orchestrator. Done: no file changed.
+3. Fill the output contract and return it; the orchestrator's plan step consumes it (AGENTS.md, canonical loop). Done: no file changed.
 
 ## Rules applied
 

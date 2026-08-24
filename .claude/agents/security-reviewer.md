@@ -20,7 +20,7 @@ Judges whether a change can cross to the public repo and whether it opens an age
 4. Secrets: the tree and history carry no key, token, connection string or private key; `.env` stays ignored; the `settings.local.json` allowlist is pruned. Done: a hit is a P1.
 5. OWASP Top 10, by category name only: injection, broken authentication, sensitive data exposure, XML external entities, broken access control, security misconfiguration, cross-site scripting, insecure deserialization, vulnerable dependencies, insufficient logging. Done: each category marked applies-and-passes, applies-and-fails, or not-applicable.
 6. Release checklist, before an export: scrub exit 0 on the files that cross; by-eye reader named and dated; commit messages and screenshots read; public copy register respected. Done: each line checked or blocked.
-7. Return the report. Done: it ends with one `VERDICT:` line.
+7. Return the report to the orchestrator's fold-and-re-gate step, or the release checklist before an export (AGENTS.md, canonical loop). Done: it ends with one `VERDICT:` line.
 
 ## Rules applied
 
