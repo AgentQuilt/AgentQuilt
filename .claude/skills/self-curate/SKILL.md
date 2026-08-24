@@ -175,6 +175,36 @@ entries and the rotate step can race a sibling curate.
 - **Step 1 (read journal)** — after reading the journal, partition by `session:` (or transcript path). Only entries whose transcript points at *this* session count as work-to-summarize; foreign entries are context. If this session's own slice is empty AND nothing else changed since the last curate → output "Nothing to curate for this lane" (do not synthesize a summary from someone else's work).
 - **Step 7 (rotate + re-stamp)** — capture the `last_curate.txt` value you read at start-of-run into a shell variable. After writing the new timestamp, re-read it: if it's older than the start-of-run stamp, a sibling raced you — re-stamp with the current UTC time and note the race in today's session log. Use `test -f` before `mv` so a sibling that already rotated doesn't cause a non-zero exit.
 
+## Hook-spawned curate lanes
+
+`run-curate.sh` fires from `PreCompact` and `SessionEnd`, so the curate usually
+runs as its **own** Claude session with no journal entries of its own. Applying
+"Parallel-session journal hygiene" literally would then abort it as *nothing to
+curate for this lane* — wrong, because the whole point of that run is to curate
+the session that triggered it.
+
+Decide by lane type before applying the partition rule:
+
+- **Hook-spawned lane** (no user turns of its own; the invocation carries `triggered by: compact-*` / `sessionend`): everything in the journal newer than `last_curate.txt` is work to summarise, foreign session ids included. The journal records counters only — never *what* happened — so read the triggering session's transcript at `~/.claude/projects/<project-slug>/<session-id>.jsonl`, filtering entries by `timestamp >= last_curate`.
+- **In-session lane** (a user typed `/self-curate` in a session that did work): partition by `session:` as written above.
+
+To learn your own session id: any Bash output large enough to be persisted names
+it in the path (`…/projects/<slug>/<session-id>/tool-results/…`). Match journal
+`session:` fields against that.
+
+## Editing the factory tree while a wave is live
+
+The build repo's checkout may be mid-wave — a worktree branch waiting to merge
+into `factory`. A merge refuses to run when a file it touches has uncommitted
+local changes, so a curate that patches a skill can block someone else's merge.
+
+Before editing anything under `.claude/`, run
+`git -C <build repo> diff --name-only factory...<wave-branch>` and stay off those
+paths. `.claude/skills/INDEX.md` is the usual casualty — it is in nearly every
+wave diff. If the index entry only needs a `[touched:]` date that is already
+correct, skip it; otherwise note the deferred index edit in the session log and
+in the report rather than dirtying the file.
+
 ## See also
 
 - `references/routing.md` — quick routing cheat sheet
