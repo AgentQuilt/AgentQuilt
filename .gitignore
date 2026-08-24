@@ -1,0 +1,14 @@
+# Claude Code — session-local machinery, never committed
+.claude/.curate/
+.claude/settings.local.json
+
+# OS noise
+.DS_Store
+.gstack/
+
+# Local-only until the release-1 provenance scrub decides what crosses
+# (see the private prep vault: release-1 compliance note + open questions)
+AGENTS.md
+CLAUDE.md
+REVIEW.md
+.claude/
