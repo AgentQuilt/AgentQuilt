@@ -6,11 +6,11 @@ disable-model-invocation: true
 
 # land-gate
 
-Runs once on a wave branch after `codex-review` says PASS and the `verifier` has reported, before the merge into `factory` (AGENTS.md, Repo state and git). It checks evidence; the only output it produces is that of the commands below.
+Runs once on a wave branch after `codex-review` PASS and the `verifier` report, before the merge into `factory` (AGENTS.md, Repo state and git).
 
 ## Evidence rule
 
-A completion claim counts only with verification output produced after the last change and pasted into the report. Any change to the tree after a run invalidates that run.
+A completion claim counts only with verification output produced after the last change and pasted into the report.
 
 | Claim | Stop |
 |---|---|
@@ -21,13 +21,13 @@ A completion claim counts only with verification output produced after the last 
 
 ## Procedure
 
-1. Preflight: `git -C <path> branch --show-current` prints the wave branch and `git -C <path> status --short` prints nothing. Done: both outputs pasted; a dirty tree or the base branch stops here.
-2. Rebase onto the base first: `git -C <path> rebase factory` (waves carry no merge commits). A conflict that needs judgment stops with the conflict shown; the gate resolves nothing. Done: `git merge-base --is-ancestor factory HEAD` holds.
+1. `git -C <path> branch --show-current` prints the wave branch and `git -C <path> status --short` prints nothing. Done: both outputs pasted; a dirty tree or the base branch stops here.
+2. `git -C <path> rebase factory` (waves carry no merge commits). A conflict stops with the conflict shown. Done: `git merge-base --is-ancestor factory HEAD` holds.
 3. Gates on the rebased tree: the commands in AGENTS.md (Gates), each output read against its trap. Done: output pasted; a red gate stops here.
 4. Review still binds: `bash .claude/skills/codex-review/scripts/review.sh check temp/<wave>_diff_review_rN.md` on the rebased tree. Done: the check passes, or one more `codex-review` round runs and the gate restarts at step 1.
-5. Docs match what shipped: for every part the diff adds, changes or removes, the line that describes it (INDEX.md, AGENTS.md, the roster, a MODULE.md, a docs page) says what the tree now does (map-outdated, `.claude/rules/architecture.md`); `git diff --stat` is the list to walk. Done: each touched part has a current line; a gap is HOLD, listed in the report.
-6. Report matches the commits: the implementer's `Done:` names nothing absent from `git log factory..<branch>` and omits nothing present. Done: both directions checked.
-7. Run step 4's `check` once more immediately before merging (steps 5–6 may have changed the tree; a stale hash restarts at step 1), merge per the AGENTS.md git rules, then `git worktree remove <path>` only when `git -C <path> status --short` prints nothing and the path is not the main checkout; never `--force`. Done: `git worktree list` no longer shows the path; a dirty worktree stays and is reported.
+5. Docs match the diff: walk `git diff --stat`; for every part added, changed or removed, the line that describes it (INDEX.md, AGENTS.md, the roster, a MODULE.md, a docs page) says what the tree now does (map-outdated, `.claude/rules/architecture.md`). Done: each part has a current line; a gap is HOLD, listed in the report.
+6. Report matches the commits: the implementer's `Done:` names nothing absent from `git log factory..<branch>` and omits nothing present.
+7. Run step 4's `check` once more immediately before merging (a stale hash restarts at step 1), merge per the AGENTS.md git rules, then `git worktree remove <path>` only when `git -C <path> status --short` prints nothing and the path is not the main checkout; never `--force`. Done: `git worktree list` no longer shows the path; a dirty worktree stays and is reported.
 
 ## Output contract
 
@@ -35,4 +35,4 @@ Per step: command, output excerpt, `PASS | STOP`. One line `VERDICT: LAND | HOLD
 
 ## Limits
 
-One pass; watching the merged branch afterwards is a separate invocation. Dormant until code exists: steps 3 and 4 have nothing to run before the gate commands land with the first scaffold, so until then the gate is steps 1, 2, 5, 6 and 7. It fixes nothing: a defect it notices goes back to `codex-review` and the implementer.
+One pass. Dormant until code exists: steps 3 and 4 have nothing to run before the first scaffold; until then the gate is steps 1, 2, 5, 6 and 7. It fixes nothing: a defect goes back to `codex-review` and the implementer.
