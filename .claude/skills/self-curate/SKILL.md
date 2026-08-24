@@ -1,6 +1,6 @@
 ---
 name: self-curate
-description: Record what this session learned in the vault's memory zones, flag stale docs, and file proposed factory changes as suggestions. Trigger on "wrap up", "save this", "remember this", "update the decision log/open questions"; after a decision settles or a correction worth keeping; or when the curate journal reaches the threshold in AGENTS.md (Self-curation).
+description: Records session learnings in the vault's memory zones, flags stale docs, files factory changes as suggestions. Fires on "wrap up", "save this", "remember this", a settled decision or the journal threshold.
 user-invocable: true
 disable-model-invocation: false
 ---

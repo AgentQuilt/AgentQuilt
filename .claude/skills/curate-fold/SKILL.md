@@ -1,6 +1,6 @@
 ---
 name: curate-fold
-description: Decide each open entry in the vault's suggestions file (accept, reject, defer) and route accepted factory changes into a wave. Fable fires it at a phase boundary; the curate lane never does.
+description: Decides each open entry in the vault's suggestions file (accept, reject, defer) and routes accepted factory changes into a wave. Fable fires it at a phase boundary.
 disable-model-invocation: true
 ---
 

@@ -28,7 +28,7 @@ gate() {  # $1 output file, $2 codex exit code
   elif [ ! -s "$1" ]; then echo "VERDICT: FAIL (empty output)"
   elif ! grep -Eq '^P[123] |^NO FINDINGS$' "$1" || ! grep -Eq '^VERDICT: (PASS|FAIL)' "$1"; then
     echo "VERDICT: FAIL (verification failure: needs a severity tag or NO FINDINGS, plus a verdict line)"
-  elif grep -Eq '^P1 |^VERDICT: FAIL' "$1"; then echo "VERDICT: FAIL (P1 present)"
+  elif grep -Eq '^P1 |^VERDICT: FAIL' "$1"; then echo "VERDICT: FAIL (P1 present, or the reviewer said FAIL)"
   else echo "VERDICT: PASS"; fi
 }
 
