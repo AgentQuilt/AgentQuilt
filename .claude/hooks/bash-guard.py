@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""PreToolUse guard for destructive Bash (advisory scope guard, not a sandbox).
+"""PreToolUse guard for destructive Bash.
 
-Deny tier (fails closed on an unreadable payload): a recursive forced `rm` whose
-target is `/`, `~` or `$HOME`, and the WSL2 / Postgres / Docker / uv patterns
-listed in DENY. `rm` is judged on tokens: the command is split on `;` `&&` `||`
-`|` and newlines, each segment tokenized with shlex, and `--` before the target
-is ignored; targets are normalised lexically (`/./`, `/..`, `//`, `/*`,
-`/tmp/../` are all `/`; `~`, `$HOME`, `${HOME}` map to a sentinel, the real
-filesystem is never touched). `$IFS`, `${IFS}` or a backslash-newline deny outright.
+Deny tier (fails closed on an unreadable payload): a recursive forced `rm` on `/`,
+`~` or `$HOME` after lexical normalisation (`/./`, `/..`, `//`, `/*`, `/tmp/../` are
+all `/`; the real filesystem is never touched), the Postgres / Docker / uv / WSL2
+patterns in DENY, and `$IFS` or a backslash-newline anywhere.
 Ask tier: any other `rm` with both -r and -f; a command shlex cannot tokenize
 (an unbalanced quote, e.g. a heredoc containing an apostrophe).
 
@@ -32,7 +29,6 @@ import sys
 SEGMENT = re.compile(r"\n|;|&&|\|\||\|")
 OBFUSCATED = re.compile(r"\$\{?IFS\}?|\\\n")
 HOME = re.compile(r"^(?:~|\$HOME|\$\{HOME\})(?=/|$)")  # lexical stand-in, the real home is never resolved
-WIPE_ROOTS = {"/", "/__HOME__"}
 DENY = [
     (re.compile(r"\bDROP\s+(?:DATABASE|SCHEMA|TABLE)\b", re.IGNORECASE), "dropping a Postgres database, schema or table"),
     (re.compile(r"\bTRUNCATE\s+(?:TABLE\s+)?\w", re.IGNORECASE), "truncating a Postgres table"),
@@ -61,9 +57,6 @@ def main() -> int:
     except Exception:
         decide("deny", "bash-guard: unreadable hook payload; denied (fails closed)")
         return 0
-    if not isinstance(command, str):
-        decide("deny", "bash-guard: tool_input.command is not a string; denied (fails closed)")
-        return 0
     if OBFUSCATED.search(command):
         decide("deny", "bash-guard: $IFS or backslash-newline in a command is obfuscation; denied")
         return 0
@@ -78,9 +71,8 @@ def main() -> int:
         return 0
     rm_rf = False
     for args in [seg[seg.index("rm") + 1:] for seg in segments if "rm" in seg]:
-        flags = [t for t in args if t.startswith("-") and t != "--"]
-        recursive = any(t == "--recursive" or re.fullmatch(r"-[a-zA-Z]*[rR][a-zA-Z]*", t) for t in flags)
-        force = any(t == "--force" or re.fullmatch(r"-[a-zA-Z]*f[a-zA-Z]*", t) for t in flags)
+        recursive = any(t == "--recursive" or re.fullmatch(r"-[a-zA-Z]*[rR][a-zA-Z]*", t) for t in args)
+        force = any(t == "--force" or re.fullmatch(r"-[a-zA-Z]*f[a-zA-Z]*", t) for t in args)
         if not (recursive and force):
             continue
         rm_rf = True
@@ -89,7 +81,7 @@ def main() -> int:
             t = os.path.normpath(HOME.sub("/__HOME__", t[:-1] if t.endswith("*") else t))
             if t.startswith("/"):
                 t = "/" + t.lstrip("/")  # normpath keeps a leading `//`
-            if t in WIPE_ROOTS:
+            if t in ("/", "/__HOME__"):
                 decide("deny", "bash-guard: rm -rf on the filesystem root or home directory; "
                        "run it yourself outside the agent if you mean it")
                 return 0

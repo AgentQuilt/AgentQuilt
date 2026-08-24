@@ -19,19 +19,11 @@ fold discipline) lives in the `codex-review` skill; this file is the contract.
 - P1 signals: 3+ files for a simple feature; a new pattern for a one-off; "future flexibility"; a helper with one call site; a class with no instance state.
 - P2 signals: Manager/Handler/Service proliferation; config for constants; middleware for a linear flow; try/catch around calls that should propagate; backward-compat shims where the code could just change.
 - Never ask for error handling, scalability, migration strategy or backward compatibility unless the task statement requires them. A diff that could be smaller is a finding.
-- The simplicity rules in `.claude/rules/` outrank a reviewer's request for broader coverage (precedence rule, AGENTS.md). Flag over-engineering in your own suggestions.
+- The precedence rule (AGENTS.md, Code simplicity) binds the reviewer's own suggestions too.
 
-## Architecture axis (P1 kinds; the wording lives in `.claude/rules/architecture.md`)
+## Architecture axis
 
-- deletion-test: not stated, or fails, for a new module.
-- one-adapter-seam: a seam with one adapter; a port around a pure function or an in-process dependency.
-- tests-past-interface: tests reach past the interface; a deepened module whose old shallow tests survive.
-- design-it-twice: a major seam chosen without genuinely different alternatives.
-- judgment-as-code: a heuristic decision tree where a skill should decide.
-- vocabulary: a design word outside the design-rules set; a domain name without a glossary entry; a kernel concept, seam, registry field or ledger event kind without an ADR number.
-- map-outdated: the change outdates `INDEX.md` / `MODULE.md` without updating it.
-- reuse-before-create: a new part where an existing one could be composed or extended, or created without naming the closest existing part and why it does not fit.
-- tautological-test: a test that restates the implementation.
+P1 kinds, by name; the wording is in `.claude/rules/architecture.md`: deletion-test · one-adapter-seam · tests-past-interface · design-it-twice · judgment-as-code · vocabulary · map-outdated · reuse-before-create · tautological-test.
 
 ## Task-fidelity axis
 

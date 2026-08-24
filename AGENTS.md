@@ -49,7 +49,7 @@ The simplicity rules in `.claude/rules/` (`architecture.md`, `python.md`, `types
 
 ## Review contract
 
-`REVIEW.md` is the reviewer contract: the simplicity, architecture and task-fidelity axes and the one severity scheme (`P1/P2/P3` plus a `VERDICT: PASS|FAIL` line). Every reviewer, human or model, reports in that scheme.
+`REVIEW.md` is the reviewer contract: three axes (simplicity, architecture, task fidelity) and one severity scheme (`P1/P2/P3` plus a `VERDICT: PASS|FAIL` line) for every reviewer.
 
 ## Review-prompt calibration
 
@@ -59,7 +59,7 @@ This paragraph goes verbatim into every review prompt (`codex-review` copies it)
 
 ## Gates
 
-Commands land with the first scaffold (ruff, pyright, pytest against real Postgres; Biome and tsc once TypeScript exists). Each gate line carries its trap inline, what a false green looks like and how to spot it, so nobody learns it from a separate doc. Until then, green means: the file caps in the factory plan hold and every hook passes its recorded smoke test.
+Commands land with the first scaffold (ruff, pyright, pytest against real Postgres; Biome and tsc once TypeScript exists). Each gate line carries its trap inline: what a false green looks like and how to spot it. Until then, green means: the file caps in the factory plan hold and every hook passes its recorded smoke test.
 
 ## Model routing
 

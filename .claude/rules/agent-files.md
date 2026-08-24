@@ -9,7 +9,7 @@ paths: [".claude/**/*.md", "AGENTS.md", "REVIEW.md"]
 - Every procedural step ends on a done-condition the reader can check.
 - Phrase positively: say what to do, and pair any prohibition with the target behaviour.
 - Apply the deletion test to instructions: delete the line, and if behaviour would not change, it stays deleted. An instruction the model already follows by default only costs context.
-- Describe the present; the environment is the source of truth, and a doc that restates a script or config is a stale cache.
+- Describe the present; a doc that restates a script or config is a stale cache.
 - Reference a rule by name and file; one rule has one home, and the other files point at it.
 - Use the glossary's word as the leading word; never coin.
 - State the vault path convention once per file, `V=../AgentQuilt-Vault`, then write `$V/...`.

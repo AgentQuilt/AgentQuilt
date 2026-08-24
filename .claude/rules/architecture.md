@@ -8,7 +8,7 @@ Source: `V=../AgentQuilt-Vault`, `$V/docs/architecture/design-rules.md` and `glo
 
 ## Checks (REVIEW.md lists them as P1 kinds; the architect states a verdict per check)
 
-- deletion-test: state the verdict for every new module. Delete it in your head: complexity vanishes, it was a pass-through, delete it; complexity reappears across N callers, it earned its keep. Depth is a property of the interface, not the implementation.
+- deletion-test: state the verdict for every new module. Delete it in your head: complexity vanishes, it was a pass-through, delete it; complexity reappears across N callers, it earned its keep.
 - one-adapter-seam: one adapter is a hypothetical seam, two adapters are a real one. No port without two justified adapters (typically production and test); a pure function or an in-process dependency gets no port.
 - tests-past-interface: the interface is the test surface. Tests assert observable outcomes through the interface and survive internal refactors; when a deepened module's interface tests exist, delete the old shallow tests. Needing to test past the interface means the module is the wrong shape.
 - design-it-twice: every major seam gets two or three genuinely different interface alternatives (minimal-surface, flexible, common-caller-optimised) before one is chosen; options differing only in naming are one option.
