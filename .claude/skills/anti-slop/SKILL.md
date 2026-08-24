@@ -28,7 +28,7 @@ Stop when any line applies; report what you have plus the question.
 ## On the finished diff
 
 1. Abstraction criterion: for each layer, wrapper, option or fallback you added, name its current consumer and the test that protects the contract. Done: both named, or the addition is gone.
-2. deletion-test and one-adapter-seam, by name, on every new module and seam in the diff. Done: a verdict per module.
+2. deletion-test and one-adapter-seam, by name, on every new module and seam and on every function, branch or option the diff adds to an existing one in the diff. Done: a verdict per module.
 3. Three similar lines: extraction happens on the third copy and is finished. Done: no half-extracted pair.
 4. Walk `references/patterns.md`. Done: each hit fixed, none argued in the report.
 5. Every changed line traces to a task line. Done: `git diff --stat` shows no file the task did not name.
