@@ -13,7 +13,7 @@ Source: `$V/docs/architecture/design-rules.md` and `glossary.md`. Design prose f
 - tests-past-interface: the interface is the test surface. Tests assert observable outcomes through the interface and survive internal refactors; when a deepened module's interface tests exist, delete the old shallow tests. Needing to test past the interface means the module is the wrong shape.
 - design-it-twice: every major seam gets two or three genuinely different interface alternatives (minimal-surface, flexible, common-caller-optimised) before one is chosen; options differing only in naming are one option.
 - judgment-as-code: judgment in skills, execution in code. Code executes a decision already made; a heuristic decision tree in code belongs in a skill.
-- vocabulary: the AGENTS.md word rule, plus every kernel concept, seam, registry field or ledger event kind carries an ADR number.
+- vocabulary: the word rule in AGENTS.md (Vocabulary and design rules), plus every kernel concept, seam, registry field or ledger event kind carries an ADR number.
 - map-outdated: the repo carries its own map (per-tree `INDEX.md`, per-module `MODULE.md`, catalogs); updating it is part of the change that alters what it describes, and a merged change that outdates the map is incomplete.
 - reuse-before-create: creating a new function, class, module, helper or tool is the exception that argues its case. Search the catalog first; either compose or extend the closest existing part, or name it and why it does not fit, in the change description where the review gate can see it.
 - tautological-test: a test that restates the implementation proves nothing; assert the behaviour the caller depends on.
