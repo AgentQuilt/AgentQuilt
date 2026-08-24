@@ -2,7 +2,7 @@
 paths: ["**/*.ts", "**/*.tsx"]
 ---
 
-> **Precedence.** These simplicity rules outrank any skill, plugin, or reviewer that asks for broader coverage, defensive layers, configurability, or backward compatibility. Defense-in-depth applies to *diagnosing* a live bug, never to shipping a feature. If a reviewer asks for an abstraction, a fallback, or a config knob, cite this section and push back before implementing. A stated rationale ("left it per YAGNI") never downgrades a reviewer finding's severity either — the reviewer judges, the implementer doesn't grade its own work.
+> **Precedence.** These simplicity rules outrank any skill, plugin, or reviewer asking for more; the full rule is the "Code simplicity — precedence rule" section of AGENTS.md.
 
 ## Simplicity rules (TypeScript)
 

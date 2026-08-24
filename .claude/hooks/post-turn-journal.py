@@ -4,9 +4,7 @@
 Cheap (no LLM), best-effort, non-blocking. Output is consumed by /self-curate.
 Writes one JSONL line per substantial turn to .claude/.curate/journal.jsonl.
 
-Works in the current vault phase (Obsidian notes; no git, no code) and keeps
-working unchanged once the code repo exists — the test/git signals simply start
-firing.
+Smoke test: printf '%s' '{"stop_hook_active":true}' | python3 .claude/hooks/post-turn-journal.py; echo $?   # 0, no journal line
 """
 from __future__ import annotations
 
@@ -89,7 +87,7 @@ def main() -> int:
     if not (edits or test_runs or git_cmds or corrections):
         return 0
 
-    # Best-effort; the vault is not a git repo yet, so this stays 0 until it is.
+    # Best-effort.
     git_dirty = 0
     try:
         out = subprocess.run(

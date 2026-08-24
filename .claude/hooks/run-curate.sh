@@ -10,7 +10,9 @@
 #
 # Recursion-guarded via CLAUDE_SELF_CURATE_RUNNING. Single-flight via a
 # RUNNING flag file (treated as stale after 15 minutes). Safe to call from
-# any hook; never blocks the caller.
+# any hook; never blocks the caller. Model: $AGENTQUILT_CURATE_MODEL (default claude-opus-5).
+#
+# Smoke test: CLAUDE_PROJECT_DIR=$PWD bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no spawn when the journal is empty
 
 set -uo pipefail
 
@@ -88,7 +90,7 @@ touch "$RUNNING_FLAG"
   CLAUDE_SELF_CURATE_RUNNING=1 \
     "$CLAUDE_BIN" \
       --print "/self-curate (triggered by: ${REASON})" \
-      --model claude-opus-5 \
+      --model "${AGENTQUILT_CURATE_MODEL:-claude-opus-5}" \
       --permission-mode bypassPermissions \
       --output-format text \
       > "$LOG" 2>&1

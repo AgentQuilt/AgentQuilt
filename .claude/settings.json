@@ -1,5 +1,26 @@
 {
+  "fallbackModel": "claude-opus-5",
+  "env": {
+    "AGENTQUILT_CURATE_THRESHOLD": "15",
+    "AGENTQUILT_CURATE_COOLDOWN_SECONDS": "3600",
+    "AGENTQUILT_CURATE_MODEL": "claude-opus-5"
+  },
   "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/git-guard.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/bash-guard.py"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "hooks": [
