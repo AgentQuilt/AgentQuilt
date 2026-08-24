@@ -31,8 +31,8 @@ disable-model-invocation: false
 6. Decision-log budget: `wc -l $V/90-meta/decision-log.md` over 400 lines means compaction. Move the oldest fifth (bottom of the file; keep tightly related entries together) verbatim to `$V/90-meta/archive/decision-log-<YYYY-MM>.md` and replace the block with `- (archived: <one-line summary>) → [[90-meta/archive/decision-log-<YYYY-MM>]]`. Repeat up to three rounds; still over, stop and say so in the report. Delete files in `.claude/.curate/archive/` older than 30 days. Done: the count is under 400 or the warning is in the report.
 7. Rotate and re-stamp. Only the lines in the step-1 snapshot are processed; anything appended or rotated by a sibling since stays as it is (neither hook rotates, this step does). A hook-spawned lane archives every snapshot line; an in-session lane archives only its own session's lines among them (`SID` is this session's id from step 1). Lines are matched by content, so a sibling's rotation in between cannot shift the selection:
    ```
-   J=.claude/.curate/journal.jsonl; A=".claude/.curate/archive/journal-$(date -u +%Y%m%dT%H%M%SZ).jsonl"; mkdir -p .claude/.curate/archive
-   grep -F "$SID" "$SNAP" > "$A"; grep -vxF -f "$A" "$J" > "$J.tmp"; mv "$J.tmp" "$J"; rm -f "$SNAP"   # hook-spawned lane: SID=. (matches every line)
+   J=.claude/.curate/journal.jsonl; mkdir -p .claude/.curate/archive; A=$(mktemp ".claude/.curate/archive/journal-$(date -u +%Y%m%dT%H%M%SZ)-XXXX.jsonl")
+   grep -F "$SID" "$SNAP" > "$A"; grep -vxF -f "$A" "$J" > "$J.$$"; mv "$J.$$" "$J"; rm -f "$SNAP"   # hook-spawned lane: SID=. (matches every line)
    date -u +"%Y-%m-%dT%H:%M:%SZ" > .claude/.curate/last_curate.txt
    ```
    The journal and the stamp are shared by every session on this checkout, worktrees included. Re-read the stamp: older than `START_STAMP` means a sibling curate raced this one; stamp again with the current time and note the race in the session log. Done: the stamp is newer than `START_STAMP`.
