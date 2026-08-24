@@ -18,7 +18,7 @@ The contract is `REVIEW.md`; the calibration paragraph is the one in `AGENTS.md`
 
 ## Gate (in the script; every doubt is FAIL)
 
-Non-zero exit; empty output; no severity tag and no verdict line anywhere (a verification failure, not a finding count); any P1 or `VERDICT: FAIL`; otherwise PASS. Only the tag grammar in the template counts, so the prompt states it.
+Non-zero exit; empty output; no severity tag and no `NO FINDINGS` line, or no verdict line (a verification failure, not a finding count); any P1 or `VERDICT: FAIL`; otherwise PASS. Only the tag grammar in the template counts, so the prompt states it.
 
 ## Stop rule
 
