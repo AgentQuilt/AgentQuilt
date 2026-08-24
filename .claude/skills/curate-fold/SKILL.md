@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 1. Read the file. An entry with an empty decision field is open. Done: the open count is stated, `0` included.
 2. For each open entry, decide in one sentence: accept when the change follows from the evidence and the target file is the rule's one home; reject when the evidence is one session, one error string or a rule already stated elsewhere; defer when it needs information the entry lacks, naming what. Cited earlier entries on the same item weigh in favour of accepting. Done: every open entry has a sentence.
-3. Route accepted entries. One line of change: a task line in the running wave's fold, or a task line for the next wave. Anything larger: a task in the plan, through `plan-gate`. The change itself lands through the wave loop (`codex-review`, anti-slop pass, merge); this skill edits no factory file. Done: every accepted entry names the wave or the plan that carries it.
+3. Route accepted entries. One line of change (a cap number, a name, a by-name reference): the orchestrator folds it directly into the running wave's branch and names it in that wave's context file, so Codex sees it. Anything larger: a task line for the running or next wave; past a line's worth of design, a task in the plan through `plan-gate`. The change itself lands through the wave loop (`codex-review`, anti-slop pass, merge); this skill edits no factory file. Done: every accepted entry names the fold, wave or plan that carries it.
 4. Mark each decided entry in place, `→ *<decision> (YYYY-MM-DD): <sentence>*`, and delete nothing; the file is the record. Done: no open entry from step 1 remains.
 
 ## Output
