@@ -1,6 +1,6 @@
 ---
 name: self-curate
-description: Records session learnings in the vault's memory zones, flags stale docs, files factory changes as suggestions. Fires on "wrap up", "save this", "remember this", a settled decision or the journal threshold.
+description: Records learnings in the vault's memory zones, flags stale docs, files factory changes as suggestions. Fires on "wrap up", "save this", "remember this", a settled decision or the journal threshold.
 user-invocable: true
 disable-model-invocation: false
 ---
