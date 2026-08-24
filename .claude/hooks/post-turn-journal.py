@@ -8,6 +8,7 @@ Smoke test: printf '%s' '{"stop_hook_active":true}' | python3 .claude/hooks/post
 """
 from __future__ import annotations
 
+import fcntl
 import json
 import os
 import re
@@ -114,8 +115,11 @@ def main() -> int:
     }
     try:
         CURATE_DIR.mkdir(parents=True, exist_ok=True)
-        with open(JOURNAL, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry) + "\n")
+        # Same lock as the /self-curate rotation (step 7), so an append never lands between its grep and mv.
+        with open(CURATE_DIR / "journal.lock", "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            with open(JOURNAL, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
     except Exception:
         pass
 
