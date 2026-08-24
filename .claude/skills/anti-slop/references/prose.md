@@ -32,8 +32,9 @@ measures in `measure.md` count, they do not edit.
 
 ## The two checks for internal prose
 
-Implementer reports, handoffs, commit messages and vault notes skip the chain. They
-get two lines:
+Implementer reports, handoffs, vault notes and `factory`-branch commit messages skip
+the chain (a commit message bound for `main` is public: chain it at the release
+cherry-pick, the sink). They get two lines:
 
 - Lead with the point. No stage directions ("In this section I will", "Let me break
   this down"), no chatbot residue ("I hope this helps").
