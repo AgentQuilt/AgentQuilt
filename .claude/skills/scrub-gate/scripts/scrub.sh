@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Provenance scrub at the sink. Usage: scrub.sh [path ...]   (default: the staged content of the current checkout)
-# Reads the pre-tag grep pattern from the vault at run time (never embedded here); prints hits as file:line and
-# exits 1 on any hit, 2 when the pattern, a named path or the grep itself fails. Then prints the by-eye read list.
-# Smoke: a file holding one listed word -> one hit, exit 1;  scrub.sh REVIEW.md -> 0 hits, exit 0
+# Reads the pre-tag grep pattern from the vault at run time; prints hits as file:line, exit 1 on any hit,
+# 2 when the pattern, a named path or the grep itself fails. Then prints the by-eye read list.
 set -euo pipefail
 V=${V:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/../AgentQuilt-Vault}
 src="$V/30-research/2026-08-23-release-1-compliance.md"

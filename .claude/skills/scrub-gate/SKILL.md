@@ -10,7 +10,7 @@ The rule is AGENTS.md, Provenance boundary. The pattern list is vault data (`$V`
 
 ## Procedure
 
-1. Scan at the sink: run `bash .claude/skills/scrub-gate/scripts/scrub.sh [paths]` on the files that are actually passed on (the staged tree, the cherry-pick, the file handed to a web search), never on a re-rendered string. Default with no paths: the staged content. Done: exit 0, or every hit listed as `file:line`.
+1. Scan at the sink: run `bash .claude/skills/scrub-gate/scripts/scrub.sh [paths]` on the files that are actually passed on (the staged tree, the cherry-pick, the file handed to a web search), never on a re-rendered string. Done: exit 0, or every hit listed as `file:line`.
 2. A hit blocks: the content is fixed at the source and re-scanned. A blocked body is persisted nowhere else (no scratch copy, no vault note quoting it). Done: re-run exits 0.
 3. Provenance comes from the path: a file under the vault or under `.claude/` is private until scanned, whatever its text claims about itself. Done: the scan ran on the file that crosses, not on a claim.
 4. Read every new public file by eye against the printed register (public-copy words are judged in context, so the script lists them instead of grepping them). Done: the reader's name and date in the release checklist.

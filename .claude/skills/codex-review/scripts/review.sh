@@ -3,16 +3,16 @@
 #   review.sh diff <wave> [base=factory] [round=1]   review the merge-base diff of the current checkout
 #   review.sh plan <wave> <file> [round=1]           review a plan file
 #   review.sh check <out.md>                         does the review still bind to this working tree?
-# Reads temp/<wave>_review_context.md (wave brief, task lines, later rounds: what was folded) when present.
+# Reads temp/<wave>_review_context.md when present.
 set -euo pipefail
 root=$(git rev-parse --show-toplevel); cd "$root"
 tpl="$root/.claude/skills/codex-review/references/prompt-template.md"
 
-tree_hash() {  # content hash of the working tree, tracked files plus untracked, ignores excluded
+tree_hash() {  # working tree content, tracked plus untracked
   local idx; idx=$(mktemp); rm -f "$idx"; GIT_INDEX_FILE=$idx git read-tree HEAD; GIT_INDEX_FILE=$idx git add -A
   GIT_INDEX_FILE=$idx git write-tree; rm -f "$idx"
 }
-state_hash() {  # tree hash, plus the plan file's own hash when the artefact lives outside the tree
+state_hash() {  # plus the plan file, which lives outside the tree
   local t; t=$(tree_hash); [ -z "${plan:-}" ] || t="$t+$(sha256sum "$plan" | cut -c1-40)"; echo "$t"
 }
 render() {  # $1 template, $2 artefact file, $3 context file, $4 kind (diff|plan); @@X@@ placeholders
@@ -23,7 +23,7 @@ render() {  # $1 template, $2 artefact file, $3 context file, $4 kind (diff|plan
     @@RULES@@) cat REVIEW.md;; *) printf '%s\n' "${line//@@KIND@@/$4}";;
   esac; done < "$1"
 }
-gate() {  # $1 output file, $2 codex exit code -> prints VERDICT line; any doubt is FAIL
+gate() {  # $1 output file, $2 codex exit code
   if [ "$2" -ne 0 ]; then echo "VERDICT: FAIL (codex exit $2; see error taxonomy in SKILL.md)"
   elif [ ! -s "$1" ]; then echo "VERDICT: FAIL (empty output)"
   elif ! grep -Eq '^P[123] |^NO FINDINGS$' "$1" || ! grep -Eq '^VERDICT: (PASS|FAIL)' "$1"; then
@@ -53,4 +53,3 @@ rc=0; timeout 560 codex exec -m gpt-5.6-sol --skip-git-repo-check -c 'sandbox_mo
 printf '\n--- reviewer output (%s), verbatim ---\n' "$out"; cat "$out"
 printf -- '\n--- gate ---\n%s\ntree: %s\n%s' "$(gate "$out" "$rc")" "$stamp" "${plan:+plan: $plan
 }" | tee -a "$out"
-echo "Next: read the findings, then write 'Recommendation: <action> because <finding>' before folding."
