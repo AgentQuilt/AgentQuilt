@@ -5,7 +5,9 @@ Deny tier (fails closed on an unreadable payload): a recursive forced `rm` whose
 target is `/`, `~` or `$HOME`, and the WSL2 / Postgres / Docker / uv patterns
 listed in DENY. `rm` is judged on tokens: the command is split on `;` `&&` `||`
 `|` and newlines, each segment tokenized with shlex, and `--` before the target
-is ignored. `$IFS`, `${IFS}` or a backslash-newline deny outright.
+is ignored; targets are normalised lexically (`/./`, `/..`, `//`, `/*`,
+`/tmp/../` are all `/`; `~`, `$HOME`, `${HOME}` map to a sentinel, the real
+filesystem is never touched). `$IFS`, `${IFS}` or a backslash-newline deny outright.
 Ask tier: any other `rm` with both -r and -f; a command shlex cannot tokenize
 (an unbalanced quote, e.g. a heredoc containing an apostrophe).
 
@@ -13,6 +15,7 @@ Smoke test (run from the repo root; expected decision after each):
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf ./build"}}' | python3 .claude/hooks/bash-guard.py     # ask
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | python3 .claude/hooks/bash-guard.py           # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf -- /"}}' | python3 .claude/hooks/bash-guard.py        # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/../"}}' | python3 .claude/hooks/bash-guard.py    # deny (normalises to /)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm$IFS-rf$IFS/"}}' | python3 .claude/hooks/bash-guard.py     # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf $HOME"}}' | python3 .claude/hooks/bash-guard.py       # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<EOF\nit'"'"'s fine\nEOF"}}' | python3 .claude/hooks/bash-guard.py  # ask (unbalanced quote)
@@ -21,13 +24,15 @@ Smoke test (run from the repo root; expected decision after each):
   printf 'not json' | python3 .claude/hooks/bash-guard.py                                                                # deny (fails closed)
 """
 import json
+import os
 import re
 import shlex
 import sys
 
 SEGMENT = re.compile(r"\n|;|&&|\|\||\|")
 OBFUSCATED = re.compile(r"\$\{?IFS\}?|\\\n")
-WIPE_ROOTS = {"/", "~", "$HOME", "${HOME}"}
+HOME = re.compile(r"^(?:~|\$HOME|\$\{HOME\})(?=/|$)")  # lexical stand-in, the real home is never resolved
+WIPE_ROOTS = {"/", "/__HOME__"}
 DENY = [
     (re.compile(r"\bDROP\s+(?:DATABASE|SCHEMA|TABLE)\b", re.IGNORECASE), "dropping a Postgres database, schema or table"),
     (re.compile(r"\bTRUNCATE\s+(?:TABLE\s+)?\w", re.IGNORECASE), "truncating a Postgres table"),
@@ -81,7 +86,10 @@ def main() -> int:
         rm_rf = True
         targets = args[args.index("--") + 1:] if "--" in args else [t for t in args if not t.startswith("-")]
         for t in targets:
-            if ((t[:-1] if t.endswith("*") else t).rstrip("/") or "/") in WIPE_ROOTS:
+            t = os.path.normpath(HOME.sub("/__HOME__", t[:-1] if t.endswith("*") else t))
+            if t.startswith("/"):
+                t = "/" + t.lstrip("/")  # normpath keeps a leading `//`
+            if t in WIPE_ROOTS:
                 decide("deny", "bash-guard: rm -rf on the filesystem root or home directory; "
                        "run it yourself outside the agent if you mean it")
                 return 0
