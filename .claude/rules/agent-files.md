@@ -12,7 +12,7 @@ paths: [".claude/**/*.md", "AGENTS.md", "REVIEW.md"]
 - Describe the present; a doc that restates a script or config is a stale cache.
 - Reference a rule by name and file; one rule has one home, and the other files point at it.
 - Use the glossary's word as the leading word; never coin.
-- State the vault path convention once per file, `V=../AgentQuilt-Vault`, then write `$V/...`.
+- Write vault paths as `$V/...`; `$V` is defined once, in AGENTS.md, and never restated.
 - Give a project skill a name no user-level skill (`~/.claude/skills/`) uses; the project copy would lose.
 - Skills only Fable or the owner fire carry `disable-model-invocation: true`; the implementer's self-checks stay model-invocable.
 - Sentence case for emphasis; plain imperatives.
