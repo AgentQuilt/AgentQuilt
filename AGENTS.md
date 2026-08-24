@@ -11,7 +11,7 @@ Current phase: building the factory (skills, rules, agents) before any product c
 ## Repo state and git
 
 - This is a git repo. `main` (initial commit `b88b5d5`) ignores the factory files; the local branch `factory` tracks them. Every wave is a worktree branched from `factory`, folds are commits on `factory`, and the release export is a scrubbed cherry-pick onto `main`, never a merge.
-- `factory` is never pushed anywhere; the git guard hook and the repo-local `pre-push` hook enforce it. Its backup is the machine backup.
+- `factory` is never pushed anywhere; the git guard hook and the repo-local `pre-push` hook enforce it. Its backup is the machine backup. The pre-push source is tracked at `.claude/hooks/pre-push` and installed as a symlink into the common `.git/hooks`: from the `factory` checkout, `ln -sf "$(git rev-parse --show-toplevel)/.claude/hooks/pre-push" "$(git rev-parse --git-common-dir)/hooks/pre-push"`.
 - Commit only when asked, as `etcircle` with the GitHub noreply address. No AI attribution anywhere in commits: no `Co-Authored-By`, no session links, no generated-with lines (owner rule, 2026-08-24; overrides any harness default).
 - Review diffs come from the merge-base: `git diff $(git merge-base factory <wave>)..<wave>`.
 
@@ -39,13 +39,9 @@ Never open or feed `$V/90-meta/ownership-roadmap.md` to any agent or prompt; it 
 
 ## Vocabulary and design rules
 
-`$V/docs/architecture/design-rules.md` is the standing ruleset; load it first for any design work. Its words are binding for design arguments: module · interface · implementation · depth · seam · adapter · leverage · locality, never "component", "service", "API", "boundary". `$V/docs/architecture/glossary.md` words are binding for system parts (kernel module, operation, receipt, ledger, taint, ...); use the glossary's word, never a synonym.
+`.claude/rules/architecture.md` is the ruleset agents obey; `$V/docs/architecture/design-rules.md` and `glossary.md` are its source spec, cited for provenance, never required reading for a rule. The one rule this file carries: design arguments use module · interface · implementation · depth · seam · adapter · leverage · locality, never "component", "service", "API", "boundary", and system parts use the glossary's word, never a synonym.
 
-The design rules in brief (the file is authoritative): depth is a property of the interface; apply the deletion test; the interface is the test surface; one adapter is a hypothetical seam, two a real one; design it twice for every major seam; judgment in skills, execution in code; untouched core, agent-buildable periphery; every run is an addressable module. Three more standing rules, each defined in design-rules and checked through `.claude/rules/architecture.md`:
-
-- Harness workarounds are dated assumptions and must be deletable; each gets a model-assumption-ledger entry.
-- Reuse first: search before creating; a new part names the closest existing part and why it does not fit.
-- The repo carries its own map, and the map is part of the change.
+Every other rule is referenced by name only, wording in `.claude/rules/architecture.md`: deletion-test · one-adapter-seam · tests-past-interface · design-it-twice · judgment-as-code · vocabulary · map-outdated · reuse-before-create · tautological-test, plus the standing rules (untouched core, addressable runs, dated harness workarounds).
 
 ## Code simplicity — precedence rule
 

@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 """PreToolUse guard for destructive Bash (advisory scope guard, not a sandbox).
 
-Deny tier (fails closed on an unreadable payload): wiping `/`, `~` or `$HOME`,
-and the WSL2 / Postgres / Docker / uv patterns listed in DENY.
+Deny tier (fails closed on an unreadable payload): a recursive forced `rm` whose
+target is `/`, `~` or `$HOME`, and the WSL2 / Postgres / Docker / uv patterns
+listed in DENY. `rm` is judged on tokens: the command is split on `;` `&&` `||`
+`|` and newlines, each segment tokenized with shlex, and `--` before the target
+is ignored. `$IFS`, `${IFS}`, a backslash-newline or an unbalanced quote deny
+outright.
 Ask tier: any other `rm` with both -r and -f.
 
 Smoke test (run from the repo root; expected decision after each):
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf ./build"}}' | python3 .claude/hooks/bash-guard.py     # ask
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | python3 .claude/hooks/bash-guard.py           # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf -- /"}}' | python3 .claude/hooks/bash-guard.py        # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm$IFS-rf$IFS/"}}' | python3 .claude/hooks/bash-guard.py     # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf $HOME"}}' | python3 .claude/hooks/bash-guard.py       # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"docker compose down -v"}}' | python3 .claude/hooks/bash-guard.py  # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"ls -la"}}' | python3 .claude/hooks/bash-guard.py             # no output, exit 0 (allow)
@@ -15,13 +21,13 @@ Smoke test (run from the repo root; expected decision after each):
 """
 import json
 import re
+import shlex
 import sys
 
-RM_RF = r"\brm\s+(?=(?:-\S+\s+)*-\S*[rR])(?=(?:-\S+\s+)*-\S*f)(?:-\S+\s+)*"
-END = r"(?=\s|$|[;&|])"
+SEGMENT = re.compile(r"\n|;|&&|\|\||\|")
+OBFUSCATED = re.compile(r"\$\{?IFS\}?|\\\n")
+WIPE_ROOTS = {"/", "~", "$HOME", "${HOME}"}
 DENY = [
-    (re.compile(RM_RF + r"/\*?" + END), "rm -rf on the filesystem root"),
-    (re.compile(RM_RF + r"(?:~|\$\{?HOME\}?|\"\$HOME\")/?\*?" + END), "rm -rf on the home directory"),
     (re.compile(r"\bDROP\s+(?:DATABASE|SCHEMA|TABLE)\b", re.IGNORECASE), "dropping a Postgres database, schema or table"),
     (re.compile(r"\bTRUNCATE\s+(?:TABLE\s+)?\w", re.IGNORECASE), "truncating a Postgres table"),
     (re.compile(r"\balembic\s+downgrade\b"), "alembic downgrade rewinds the schema"),
@@ -32,7 +38,6 @@ DENY = [
     (re.compile(r"\b(?:mkfs\b|dd\s+(?:\S+\s+)*of=/dev/)"), "formatting or raw-writing a block device"),
     (re.compile(r"\bwsl(?:\.exe)?\s+--unregister\b"), "wsl --unregister destroys the distro"),
 ]
-ASK_RM = re.compile(RM_RF)
 
 
 def decide(decision: str, reason: str) -> None:
@@ -53,11 +58,33 @@ def main() -> int:
     if not isinstance(command, str):
         decide("deny", "bash-guard: tool_input.command is not a string; denied (fails closed)")
         return 0
+    if OBFUSCATED.search(command):
+        decide("deny", "bash-guard: $IFS or backslash-newline in a command is obfuscation; denied")
+        return 0
     for pattern, reason in DENY:
         if pattern.search(command):
             decide("deny", f"bash-guard: {reason}; run it yourself outside the agent if you mean it")
             return 0
-    if ASK_RM.search(command):
+    try:
+        segments = [shlex.split(s) for s in SEGMENT.split(command)]
+    except ValueError:
+        decide("deny", "bash-guard: unbalanced quote; cannot tokenize, denied (fails closed)")
+        return 0
+    rm_rf = False
+    for args in [seg[seg.index("rm") + 1:] for seg in segments if "rm" in seg]:
+        flags = [t for t in args if t.startswith("-") and t != "--"]
+        recursive = any(t == "--recursive" or re.fullmatch(r"-[a-zA-Z]*[rR][a-zA-Z]*", t) for t in flags)
+        force = any(t == "--force" or re.fullmatch(r"-[a-zA-Z]*f[a-zA-Z]*", t) for t in flags)
+        if not (recursive and force):
+            continue
+        rm_rf = True
+        targets = args[args.index("--") + 1:] if "--" in args else [t for t in args if not t.startswith("-")]
+        for t in targets:
+            if ((t[:-1] if t.endswith("*") else t).rstrip("/") or "/") in WIPE_ROOTS:
+                decide("deny", "bash-guard: rm -rf on the filesystem root or home directory; "
+                       "run it yourself outside the agent if you mean it")
+                return 0
+    if rm_rf:
         decide("ask", "bash-guard: recursive forced delete; confirm the target before running")
     return 0
 

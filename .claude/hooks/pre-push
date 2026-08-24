@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Repo-local pre-push hook. Source is tracked here; the common .git/hooks copy
+# (shared by every worktree) is a symlink to this file, see AGENTS.md, Repo state
+# and git. Rejects any push that involves the `factory` branch: per D2 it is
+# never pushed anywhere; its backup is the machine backup.
+# Smoke test:  printf 'refs/heads/factory 0 refs/heads/factory 0\n' | .claude/hooks/pre-push origin x   # exit 1
+#              printf 'refs/heads/main 0 refs/heads/main 0\n' | .claude/hooks/pre-push origin x         # exit 0
+while read -r local_ref _ remote_ref _; do
+  case "$local_ref $remote_ref" in
+    *refs/heads/factory*)
+      echo "pre-push: refusing to push 'factory' ($local_ref -> $remote_ref). The factory branch is never pushed (AGENTS.md, Repo state and git)." >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0
