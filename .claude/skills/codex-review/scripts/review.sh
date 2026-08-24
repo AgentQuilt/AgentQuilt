@@ -12,6 +12,9 @@ tree_hash() {  # content hash of the working tree, tracked files plus untracked,
   local idx; idx=$(mktemp); rm -f "$idx"; GIT_INDEX_FILE=$idx git read-tree HEAD; GIT_INDEX_FILE=$idx git add -A
   GIT_INDEX_FILE=$idx git write-tree; rm -f "$idx"
 }
+state_hash() {  # tree hash, plus the plan file's own hash when the artefact lives outside the tree
+  local t; t=$(tree_hash); [ -z "${plan:-}" ] || t="$t+$(sha256sum "$plan" | cut -c1-40)"; echo "$t"
+}
 render() {  # $1 template, $2 artefact file, $3 context file, $4 kind (diff|plan); @@X@@ placeholders
   local calib; calib=$(awk '/^## Review-prompt calibration/{f=1;next} f&&/^> /{sub(/^> /,"");print;exit}' AGENTS.md)
   while IFS= read -r line; do case "$line" in
@@ -36,17 +39,18 @@ case "$mode" in
         [ -z "$untracked" ] || { printf 'untracked files present; commit or ignore them first:\n%s\n' "$untracked" >&2; exit 2; }
         git diff "$(git merge-base "$base" HEAD)" > "$artefact"
         [ -s "$artefact" ] || { echo "nothing to review: empty diff against merge-base of $base" >&2; exit 2; };;
-  plan) artefact=${3:?plan file}; round=${4:-1};;
-  check) hash=$(sed -n 's/^tree: //p' "${wave:?output file}"); now=$(tree_hash)
+  plan) artefact=${3:?plan file}; plan=$artefact; round=${4:-1};;
+  check) hash=$(sed -n 's/^tree: //p' "${wave:?output file}"); plan=$(sed -n 's/^plan: //p' "$wave"); now=$(state_hash)
          [ "$hash" = "$now" ] && echo "binds: tree $now unchanged" || { echo "stale: reviewed $hash, tree now $now"; exit 1; };;
   *) sed -n '2,6p' "$0"; exit 2;;
 esac
 [ "$mode" = check ] && exit 0
 command -v codex > /dev/null || { echo "codex not on PATH" >&2; exit 2; }
 mkdir -p temp; prompt="temp/${wave:?wave}_${mode}_review_prompt_r${round}.txt"; out="temp/${wave}_${mode}_review_r${round}.md"
-render "$tpl" "$artefact" "temp/${wave}_review_context.md" "$mode" > "$prompt"
+render "$tpl" "$artefact" "temp/${wave}_review_context.md" "$mode" > "$prompt"; stamp=$(state_hash)  # hashed before the review, so later edits read as stale
 rc=0; timeout 560 codex exec -m gpt-5.6-sol --skip-git-repo-check -c 'sandbox_mode="read-only"' -o "$out" - < "$prompt" > /dev/null 2> "$out.log" || rc=$?
 [ -f "$out" ] || : > "$out"
 printf '\n--- reviewer output (%s), verbatim ---\n' "$out"; cat "$out"
-printf -- '\n--- gate ---\n%s\ntree: %s\n' "$(gate "$out" "$rc")" "$(tree_hash)" | tee -a "$out"
+printf -- '\n--- gate ---\n%s\ntree: %s\n%s' "$(gate "$out" "$rc")" "$stamp" "${plan:+plan: $plan
+}" | tee -a "$out"
 echo "Next: read the findings, then write 'Recommendation: <action> because <finding>' before folding."

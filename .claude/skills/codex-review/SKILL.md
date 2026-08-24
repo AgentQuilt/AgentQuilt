@@ -14,7 +14,7 @@ The contract is `REVIEW.md`; the calibration paragraph is the one in `AGENTS.md`
 2. Run from the wave checkout: `bash .claude/skills/codex-review/scripts/review.sh diff <wave> [base] [round]` (diffs come from the merge-base of `base`, default `factory`; an empty diff stops before a round is spent) or `... plan <wave> <file> [round]`. Prompt and output land in gitignored `temp/`. Done: a `VERDICT:` line printed under `--- gate ---`.
 3. Read the reviewer output verbatim, then write one line before touching anything: `Recommendation: <action> because <finding>`. Done: the line quotes a finding or `NO FINDINGS`.
 4. Fold: every P1; every P2 unless argued away in one sentence in the next context file; folds are commits, so the round trail is the record. Done: one commit per round with the round number in the message.
-5. Re-run; before reusing an old verdict, `review.sh check temp/<wave>_<mode>_review_rN.md` says whether it still binds (content hash of the working tree, not commit count).
+5. Re-run; before reusing an old verdict, `review.sh check temp/<wave>_<mode>_review_rN.md` says whether it still binds (content hash of the working tree, plus the plan file in plan mode, taken before the review ran; never commit count).
 
 ## Gate (in the script; every doubt is FAIL)
 
