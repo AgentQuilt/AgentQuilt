@@ -10,7 +10,7 @@ lines of scaffold, and agents inflate it.
 
 - Clone growth: added lines that repeat inside the diff. `git diff -U0 BASE | grep -E '^\+[^+]' | sed 's/^+//; s/^\s+//' | awk 'length > 30' | sort | uniq -d | wc -l`. Compare with the same count on the exemplar module's own history; the guardrails assume a multiple, not a fraction.
 - Function count: `git diff -U0 BASE -- '*.py' | grep -cE '^\+\s*(async )?def '` (TypeScript: `'^\+.*\b(function\b|=>)'`). Divide by task lines delivered; against the exemplar, more than 1.5x per feature is the tell.
-- Verbosity per changed line: non-blank, non-comment added lines over functions touched. `git diff -U0 BASE | grep -E '^\+[^+]' | grep -vE '^\+\s*(#|//|$)' | wc -l`, over the function count above. The exemplar's ratio (`grep -cE '^\s*(async )?def ' file` against its `wc -l`) is the band.
+- Verbosity: added lines per function touched. Numerator: `git diff -U0 BASE | grep -E '^\+[^+]' | grep -vE '^\+\s*(#|//|$)' | wc -l`. Denominator: functions whose body the diff enters, read from the hunk headers (they carry the enclosing def), plus new defs: `git diff -U0 BASE -- '*.py' | grep -c '^@@.*def '` + `git diff -U0 BASE -- '*.py' | grep -cE '^\+\s*(async )?def '` (TypeScript: `'^@@.*(function |=> )'` and `'^\+.*\b(function\b|=>)'`). A zero denominator means no functions touched: report added lines only. The exemplar's ratio (`wc -l` over `grep -cE '^\s*(async )?def ' file`) is the band.
 - Budget pressure: `uvx ruff check --select PLR0913,PLR0915,C901 --statistics` on the changed files. Rising counts at the same feature size mean the diff is bulking.
 
 ## Prose, per artefact (against a sample of the owner's writing in the same register)

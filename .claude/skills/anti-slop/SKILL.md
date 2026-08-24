@@ -47,10 +47,11 @@ the model-assumption-ledger entry are in `references/measure.md`.
 
 The next `codex-review` round on the diff carries no P1 of kind deletion-test,
 one-adapter-seam, reuse-before-create or a simplicity-axis P1 signal, and at most two
-simplicity-axis P2 (threshold proposed, 2026-08-24). Verifier: `grep -c '^P1 '` on
-`temp/<wave>_diff_review_r1.md` returns 0 for those kinds; `grep -c '^P2 '` returns at
-most 2. The same kind on two consecutive diffs means the line here that should have
-caught it is broken: fix the line, not only the diff.
+simplicity-axis P2 (threshold proposed, 2026-08-24). Verifier, kinds as REVIEW.md names them:
+`grep -cE '^P1 .*(deletion-test|one-adapter-seam|reuse-before-create|3\+ files|one-off|future flexibility|one call site|no instance state)' temp/<wave>_diff_review_r1.md` returns 0;
+`grep -cE '^P2 .*(proliferation|config for constants|middleware|try/catch|backward-compat)' temp/<wave>_diff_review_r1.md` returns at most 2.
+The same kind on two consecutive diffs means the line here that should have caught it
+is broken: fix the line, not only the diff.
 
 ## Limits
 

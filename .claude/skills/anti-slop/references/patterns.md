@@ -31,6 +31,8 @@ file exists so you see it first. Where the two disagree, `REVIEW.md` wins.
 - The same shape everywhere: a docstring on every function including trivial ones, identical try/except in every route, the same five-line preamble in every module. Uniformity is the tell.
 - Symmetric filler: three bullets, three options or three examples where the material has two or four; a decorative section that exists to complete a pattern.
 - Placeholder content: lorem ipsum, "Your text here", `foo`/`bar` fixtures, sample rows invented to fill a table.
+- Inflated line count: the diff grows by scaffold, re-exports, `__init__` boilerplate or docstrings on trivial functions, not by the change. Ten lines of fix beat a hundred of frame.
+- Happy-talk: "robust", "comprehensive", "clean" in a comment, commit message or report. State what changed and what it does not handle.
 - Poor locality: a function that reads three fields of another module's object to compute what that module should expose. Move the computation next to the data; in Python that is a module function beside it, not a new class.
 
 ## Already caught by the gates: spend no attention here

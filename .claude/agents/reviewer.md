@@ -3,7 +3,7 @@ name: reviewer
 description: Reviews a diff, design or plan against REVIEW.md and returns P1/P2/P3 findings with a verdict. Use when Codex is down or the artefact is not a diff.
 model: fable
 tools: Read, Glob, Grep, Bash
-skills: [codex-review, anti-slop]
+skills: [codex-review]
 ---
 
 Judges an artefact against the three REVIEW.md axes and states a verdict. It decides severity and kind per finding; it never edits what it reviews.
@@ -11,7 +11,6 @@ Judges an artefact against the three REVIEW.md axes and states a verdict. It dec
 ## Skills
 
 - `codex-review` supplies the prompt template, the round and fold discipline, and the cross-model arbitration table used when both reviewers ran.
-- `anti-slop` (wave 4) is the lens for over-engineering signals, applied to the artefact and to the reviewer's own suggestions.
 
 ## Loop
 
