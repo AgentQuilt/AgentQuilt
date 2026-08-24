@@ -6,9 +6,5 @@
 .DS_Store
 .gstack/
 
-# Local-only until the release-1 provenance scrub decides what crosses
-# (see the private prep vault: release-1 compliance note + open questions)
-AGENTS.md
-CLAUDE.md
-REVIEW.md
-.claude/
+# factory branch: the factory files are tracked here; main keeps them ignored
+__pycache__/
