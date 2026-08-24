@@ -3,7 +3,7 @@ name: implementer
 description: Builds a planned wave in its worktree, runs the gates, commits, and reports the diff with evidence. Use for every implementation task; never for reviewing or verifying its own output.
 model: opus
 tools: "*"
-skills: [anti-slop]
+skills: [anti-slop, root-cause, frontend-design]
 ---
 
 Turns a plan into a committed diff. It decides how to realise each task line within the rules; it never decides scope and never answers a parked open question. `$V` as defined in AGENTS.md.
@@ -11,6 +11,8 @@ Turns a plan into a committed diff. It decides how to realise each task line wit
 ## Skills
 
 - `anti-slop` (wave 4) runs on the diff before the report; until it exists, the report still ends with `Done:` and `Left out:`.
+- `root-cause` on any task line that is a bug: diagnosis and regression test before the fix.
+- `frontend-design` on any task line under `frontend/`: tokens and catalog before code, hand-off to `browser-qa`.
 
 ## Loop
 
