@@ -12,7 +12,7 @@ disable-model-invocation: false
 ## Procedure
 
 1. Read: `.claude/.curate/journal.jsonl` (record how many lines were read: `N=$(wc -l < .claude/.curate/journal.jsonl)`), `.claude/.curate/last_curate.txt` (keep its value as `START_STAMP`), `git status --porcelain` (keep it: `BEFORE=$(git status --porcelain | sort)`) and `git diff --stat`, today's `$V/90-meta/session-log/YYYY-MM-DD.md`, `head -40` of `$V/90-meta/decision-log.md` and `$V/90-meta/open-questions.md`, `$V/Home.md`. Then pick the lane type:
-   - Hook-spawned (the invocation carries `triggered by:`; no user turns of its own): every journal entry newer than `START_STAMP` is work to record, whatever its `session:`. The journal holds counters only, so read the triggering transcript at `~/.claude/projects/<project-slug>/<session-id>.jsonl` from that timestamp on.
+   - Hook-spawned (the invocation carries `triggered by:`; no user turns of its own): every journal entry newer than `START_STAMP` is work to record, whatever its `session:`. The journal holds counters only, so read every transcript the selected entries name (the unique set of their `transcript` paths, under `~/.claude/projects/<project-slug>/`), each from `START_STAMP` on; an entry whose transcript cannot be read stays live, not archived.
    - In-session (`/self-curate` typed in a working session): only entries whose `session:` is this session count; the id is in the path of any persisted tool result (`…/projects/<slug>/<session-id>/tool-results/…`). Foreign entries are context.
    Done: lane type stated; or "Nothing to curate." when the slice is empty and the tree is clean, and stop.
 2. Route each item to exactly one zone. Formats are in each file's own header; do not restate them.
