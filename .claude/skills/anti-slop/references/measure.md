@@ -1,10 +1,8 @@
 # Measure: the numbers behind the guardrails
 
 Every number here is a measure, never a gate. It means something only against the
-same number taken on the exemplar (code) or on the owner's own writing (prose); a bare
-figure proves nothing. Tools: `git`, `grep`, `wc`, `awk`, `uvx ruff`. Nothing new.
-Raw line count is not a measure: ten lines of a good fix ship more than ten thousand
-lines of scaffold, and agents inflate it.
+same number taken on the exemplar (code) or on the owner's own writing (prose). Tools:
+`git`, `grep`, `wc`, `awk`, `uvx ruff`. Raw line count is not a measure; agents inflate it.
 
 ## Code, per wave diff (`BASE` = the merge-base)
 
