@@ -10,8 +10,8 @@ pattern=$(grep -o 'pre-tag grep gate (`[^`]*`)' "$src" | sed 's/^[^`]*`//; s/`)$
 [ -n "$pattern" ] || { echo "scrub-gate: pattern not found in $src" >&2; exit 2; }
 for f in "$@"; do [ -f "$f" ] && [ -r "$f" ] || { echo "scrub-gate: cannot read $f" >&2; exit 2; }; done
 rc=0
-if [ $# -eq 0 ]; then hits=$(git grep -nEH --cached -e "$pattern") || rc=$?; scope="the staged tree"
-else hits=$(grep -nEH -e "$pattern" -- "$@") || rc=$?; scope="$# file(s)"; fi
+if [ $# -eq 0 ]; then hits=$(git grep -nEH --cached -e "$pattern" | cut -d: -f1,2) || rc=$?; scope="the staged tree"
+else hits=$(grep -nEH -e "$pattern" -- "$@" | cut -d: -f1,2) || rc=$?; scope="$# file(s)"; fi
 [ "$rc" -le 1 ] || { echo "scrub-gate: grep failed (exit $rc)" >&2; exit 2; }
 if [ -n "$hits" ]; then printf '%s\n' "$hits"; echo "scrub-gate: $(printf '%s\n' "$hits" | wc -l) hit(s); nothing crosses"; exit 1; fi
 echo "scrub-gate: 0 hits in $scope"
