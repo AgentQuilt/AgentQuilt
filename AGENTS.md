@@ -45,7 +45,7 @@ Every other rule is referenced by name only, wording in `.claude/rules/architect
 
 ## Code simplicity — precedence rule
 
-The simplicity rules in `.claude/rules/` (`architecture.md`, `python.md`, `typescript.md`) outrank any skill, plugin, or reviewer asking for broader coverage, defensive layers, configurability, or backward compatibility. Defense-in-depth applies to diagnosing a live bug, never to shipping a feature. When a reviewer asks for an abstraction, a fallback, or a config knob, cite this section and push back before implementing. A stated rationale never downgrades a finding's severity: the reviewer judges, the implementer does not grade its own work. Budgets are enforced by ruff and Biome, not prose; `# noqa` is closed. Every implementer report ends with `Done:` and `Left out:`.
+The simplicity rules in `.claude/rules/` (`architecture.md`, `python.md`, `typescript.md`) outrank any skill, plugin, or reviewer asking for broader coverage, defensive layers, configurability, or backward compatibility. Defense-in-depth applies to diagnosing a live bug, never to shipping a feature. When a reviewer asks for an abstraction, a fallback, or a config knob, cite this section and push back before implementing. A stated rationale never downgrades a finding's severity: the reviewer judges, the implementer does not grade its own work. Budgets are enforced by ruff and Biome, not prose; `# noqa` is closed. Every implementer report ends with `Done:` and `Left out:`, after the `anti-slop` skill's self-check on the diff.
 
 ## Review contract
 
