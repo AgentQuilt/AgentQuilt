@@ -28,7 +28,7 @@ REVIEW.md (contract: severity, three axes); `.claude/rules/architecture.md` (P1 
 
 ## Output contract
 
-Per finding, on its own line: `P1 | P2 | P3`, `file:line`, kind by name, one sentence. Then `Resolved:` for a re-review round. Last line: `VERDICT: PASS` or `VERDICT: FAIL`; any P1 means FAIL. `NO FINDINGS` replaces the list when empty. The orchestrator folds; the report proposes no edits.
+Per finding, on its own line: `P1 | P2 | P3`, `file:line`, kind by name, `mechanical | judgment` as the `codex-review` prompt template defines it, one sentence. Then `Resolved:` for a re-review round. Last line: `VERDICT: PASS` or `VERDICT: FAIL`; any P1 means FAIL. `NO FINDINGS` replaces the list when empty. The orchestrator folds; the report proposes no edits.
 
 ## Limits
 

@@ -18,7 +18,7 @@ Establishes whether a wave did what its criteria say, with evidence a reader can
 2. Run the gates named in AGENTS.md (Gates) from the wave checkout and read each output against its inline trap. Done: output captured verbatim, a false green named as such.
 3. Caps: `wc -l` on every file the wave touched against the caps in `.claude/rules/agent-files.md` and the factory plan; descriptions at or under thirty words. Done: a table of file, count, cap, pass or fail.
 4. Report shape: the implementer's report carries `Done:` and `Left out:` and names a reused part or a justification per new part; the map (`INDEX.md`, `MODULE.md`, catalogs) matches what the diff changed. Done: a missing item is a fail on this criterion.
-5. `git add -A` in the wave checkout, then `bash .claude/skills/scrub-gate/scripts/scrub.sh`. Done: exit code and every hit recorded as `file:line`.
+5. Precondition: `git status --short` in the wave checkout is empty; otherwise stop and report `dirty checkout` as a failed precondition. Then `bash .claude/skills/scrub-gate/scripts/scrub.sh` in default mode (the staged tree equals HEAD on a clean tree). Done: exit code and every hit recorded as `file:line`.
 6. Smoke suites: rerun each touched hook's recorded smoke test from its header comment. Done: expected and observed decision per case.
 7. Write the report to the path the orchestrator named, if any, and return it. Done: every criterion has a verdict and its evidence.
 
@@ -37,4 +37,4 @@ Establishes whether a wave did what its criteria say, with evidence a reader can
 
 ## Limits
 
-Write is for the report file only. A criterion without a deciding command or read is BLOCKED and goes back to the orchestrator to sharpen.
+Write is for the report file only; the index is never touched (no `git add`, no `git stash`). A criterion without a deciding command or read is BLOCKED and goes back to the orchestrator to sharpen.

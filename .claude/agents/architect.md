@@ -15,7 +15,7 @@ Decides the shape of a module: its interface, its seams, which dependency catego
 
 ## Loop
 
-1. Read the brief, `head -40 $V/90-meta/decision-log.md` and `$V/90-meta/open-questions.md`. Done: the constraints are listed; any parked question the design would answer is named for escalation.
+1. Read the brief, the top of `$V/90-meta/decision-log.md` (the newest entries) and `$V/90-meta/open-questions.md`. Done: the constraints are listed; any parked question the design would answer is named for escalation.
 2. Reuse-before-create: for every part the design would create, search the repo and name the closest existing part. Done: each new part carries the part it beat and why it does not fit, or is dropped.
 3. Design it twice: for every major seam, two or three genuinely different interface alternatives (minimal-surface, flexible, common-caller-optimised), each with a deletion-test verdict. Done: one is chosen and the beaten ones are named.
 4. Place each seam in a dependency category and name both adapters, or state that it gets no port. Done: no seam has one adapter.

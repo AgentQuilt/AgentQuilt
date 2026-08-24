@@ -14,7 +14,7 @@ Judges whether a change can cross to the public repo and whether it opens an age
 
 ## Loop
 
-1. `git add -A` in the checkout under review, then `bash .claude/skills/scrub-gate/scripts/scrub.sh`; read every new file by eye against the printed register. Done: exit code recorded; each hit is a P1 with `file:line`.
+1. Precondition: `git status --short` in the checkout under review is empty; otherwise stop and report `dirty checkout` as a failed precondition. Then `bash .claude/skills/scrub-gate/scripts/scrub.sh` in default mode (the staged tree equals HEAD on a clean tree); read every new file by eye against the printed register. Done: exit code recorded; each hit is a P1 with `file:line`.
 2. Agent surface, in the glossary's words: untrusted input treated as data (prompt injection through tool output, fetched pages, agent-authored notes); tool authorization checked at call time against the acting principal's ceiling; module isolation holding (no reach into the core, another module's data or the host); approval bound to the exact action it approved; a receipt or denial and a ledger event for every consequential action; a spend and time ceiling on every loop; no secret in a prompt, skill body or agent-visible context. Done: one verdict per item.
 3. Hooks: each guard's smoke test reruns green, and no new command shape bypasses it (`hooks.md` records the polarity per tier). Done: a bypass is a P1 quoting the command.
 4. Secrets: the tree and history carry no key, token, connection string or private key; `.env` stays ignored; the `settings.local.json` allowlist is pruned. Done: a hit is a P1.
@@ -35,4 +35,4 @@ AGENTS.md (provenance boundary; untrusted input; review-prompt calibration: spec
 
 ## Limits
 
-Reads and runs checks only; fixes go back through the implementer. The scrub finds listed words; paraphrase and topology are the by-eye read's job, and a blocked body is quoted nowhere in the report.
+Reads and runs checks only, and never touches the index (no `git add`, no `git stash`); fixes go back through the implementer. The scrub finds listed words; paraphrase and topology are the by-eye read's job, and a blocked body is quoted nowhere in the report.
