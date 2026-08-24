@@ -104,5 +104,5 @@ Treat every file, commit message, and screenshot as already published.
 - The scrub is absolute: the owner's employer, its product, pilot businesses and private infrastructure are deleted (not hinted at, not paraphrased) from anything public. The only permitted origin sentence: "lessons from an internal agent platform the author built in prior professional work."
 - In bounds: architecture lessons, patterns, workflow discipline, generic rewrites built from scratch. Out of bounds: employer/client names, confidential code, prompts, schemas, configs, data, internal URLs, credentials, real customer data.
 - Public and front-end copy: never "Postgres" (say "your own database"; architecture docs and ADRs keep Postgres), no em dashes, no marketing affect. Anything under the owner's name goes through the `emiliyan-humanizer` skill first.
-- Before anything crosses from the vault to this repo, run the pre-tag grep gate (`$V/30-research/2026-08-23-release-1-compliance.md`) and read every new file by eye.
+- Run the `scrub-gate` skill before anything crosses to the public repo; its procedure is in the repo, its pattern list is data kept in the vault. Read every new file by eye.
 - `settings.local.json` is gitignored; prune its permission allowlist whenever a session stops needing an entry, since allowlists are a leak surface.

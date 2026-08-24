@@ -5,9 +5,9 @@ Deny tier (fails closed on an unreadable payload): a recursive forced `rm` whose
 target is `/`, `~` or `$HOME`, and the WSL2 / Postgres / Docker / uv patterns
 listed in DENY. `rm` is judged on tokens: the command is split on `;` `&&` `||`
 `|` and newlines, each segment tokenized with shlex, and `--` before the target
-is ignored. `$IFS`, `${IFS}`, a backslash-newline or an unbalanced quote deny
-outright.
-Ask tier: any other `rm` with both -r and -f.
+is ignored. `$IFS`, `${IFS}` or a backslash-newline deny outright.
+Ask tier: any other `rm` with both -r and -f; a command shlex cannot tokenize
+(an unbalanced quote, e.g. a heredoc containing an apostrophe).
 
 Smoke test (run from the repo root; expected decision after each):
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf ./build"}}' | python3 .claude/hooks/bash-guard.py     # ask
@@ -15,6 +15,7 @@ Smoke test (run from the repo root; expected decision after each):
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf -- /"}}' | python3 .claude/hooks/bash-guard.py        # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm$IFS-rf$IFS/"}}' | python3 .claude/hooks/bash-guard.py     # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf $HOME"}}' | python3 .claude/hooks/bash-guard.py       # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<EOF\nit'"'"'s fine\nEOF"}}' | python3 .claude/hooks/bash-guard.py  # ask (unbalanced quote)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"docker compose down -v"}}' | python3 .claude/hooks/bash-guard.py  # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"ls -la"}}' | python3 .claude/hooks/bash-guard.py             # no output, exit 0 (allow)
   printf 'not json' | python3 .claude/hooks/bash-guard.py                                                                # deny (fails closed)
@@ -68,7 +69,7 @@ def main() -> int:
     try:
         segments = [shlex.split(s) for s in SEGMENT.split(command)]
     except ValueError:
-        decide("deny", "bash-guard: unbalanced quote; cannot tokenize, denied (fails closed)")
+        decide("ask", "bash-guard: could not parse command; review manually")
         return 0
     rm_rf = False
     for args in [seg[seg.index("rm") + 1:] for seg in segments if "rm" in seg]:
