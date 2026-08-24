@@ -32,6 +32,8 @@ gate() {  # $1 output file, $2 codex exit code -> prints VERDICT line; any doubt
 mode=${1:-}; wave=${2:-}
 case "$mode" in
   diff) base=${3:-factory}; round=${4:-1}; artefact=$(mktemp)
+        untracked=$(git ls-files --others --exclude-standard)
+        [ -z "$untracked" ] || { printf 'untracked files present; commit or ignore them first:\n%s\n' "$untracked" >&2; exit 2; }
         git diff "$(git merge-base "$base" HEAD)" > "$artefact"
         [ -s "$artefact" ] || { echo "nothing to review: empty diff against merge-base of $base" >&2; exit 2; };;
   plan) artefact=${3:?plan file}; round=${4:-1};;
