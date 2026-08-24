@@ -17,7 +17,7 @@ disable-model-invocation: true
 
 ## Output
 
-One line per decided entry, `<date> — <target file> — <decision> — <where it goes>`, then the open count left (deferred entries).
+One line per decided entry, `<date> — <target file> — <decision> — <where it goes>`, then the deferred count (deferred entries are decided and marked; they reopen when the named information arrives).
 
 ## Limits
 
