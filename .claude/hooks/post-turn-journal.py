@@ -5,10 +5,19 @@ Cheap (no LLM), best-effort, non-blocking. Output is consumed by /self-curate.
 Writes one JSONL line per substantial turn to .claude/.curate/journal.jsonl.
 
 Smoke test: printf '%s' '{"stop_hook_active":true}' | python3 .claude/hooks/post-turn-journal.py; echo $?   # 0, no journal line
+
+Duplicate suppression (run from the repo root; scratch project dir, no spawn):
+  d=$(mktemp -d); e='{"message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{}}]}}'
+  p=$(printf '{"session_id":"s","transcript_path":"%s"}' "$d/t.jsonl"); echo "$e" > "$d/t.jsonl"
+  for i in 1 2; do printf '%s' "$p" | CLAUDE_PROJECT_DIR="$d" CLAUDE_SELF_CURATE_RUNNING=1 python3 .claude/hooks/post-turn-journal.py; done
+  wc -l < "$d/.claude/.curate/journal.jsonl"   # 1: the second Stop counted the same transcript lines
+  echo "${e/Edit/Write}" > "$d/t.jsonl"; printf '%s' "$p" | CLAUDE_PROJECT_DIR="$d" CLAUDE_SELF_CURATE_RUNNING=1 python3 .claude/hooks/post-turn-journal.py
+  wc -l < "$d/.claude/.curate/journal.jsonl"   # 2: same totals, different activity — the window moved
 """
 from __future__ import annotations
 
 import fcntl
+import hashlib
 import json
 import os
 import re
@@ -35,6 +44,25 @@ CORRECTION_RE = re.compile(
 )
 
 
+def _duplicate_of_last(entry: dict) -> bool:
+    """Same activity signature as this session's last journal line: a re-fired Stop.
+
+    Equal counter totals would not be proof — the rolling window can admit new
+    activity while old activity scrolls out at the same totals. Best-effort like the
+    rest of the file: an unreadable, corrupt, unsigned or just-rotated journal
+    re-admits one duplicate.
+    """
+    try:
+        with open(JOURNAL, "r", encoding="utf-8") as f:
+            for line in reversed(f.readlines()):
+                prev = json.loads(line)
+                if prev.get("session") == entry["session"]:
+                    return prev.get("sig") == entry["sig"]
+    except Exception:
+        pass
+    return False
+
+
 def main() -> int:
     try:
         raw = sys.stdin.read()
@@ -57,6 +85,10 @@ def main() -> int:
         return 0
 
     edits = test_runs = git_cmds = corrections = 0
+    # Signature over the raw transcript lines that were counted, in order: it changes
+    # whenever activity is added, removed or scrolled out of the window above, which
+    # equal totals alone would miss.
+    sig = hashlib.sha1(usedforsecurity=False)
     for line in lines:
         try:
             obj = json.loads(line)
@@ -67,6 +99,7 @@ def main() -> int:
             continue
         content = msg.get("content")
         role = msg.get("role")
+        before = (edits, test_runs, git_cmds, corrections)
         if isinstance(content, list):
             for block in content:
                 if not isinstance(block, dict):
@@ -85,6 +118,8 @@ def main() -> int:
                 elif btype == "text" and role == "user":
                     if CORRECTION_RE.search(block.get("text", "") or ""):
                         corrections += 1
+        if (edits, test_runs, git_cmds, corrections) != before:
+            sig.update(line.encode("utf-8", "replace"))
 
     if not (edits or test_runs or git_cmds or corrections):
         return 0
@@ -111,6 +146,7 @@ def main() -> int:
         "git_cmds": git_cmds,
         "corrections": corrections,
         "git_dirty_files": git_dirty,
+        "sig": sig.hexdigest(),
         "transcript": transcript,
     }
     try:
@@ -118,8 +154,11 @@ def main() -> int:
         # Same lock as the /self-curate rotation (step 7), so an append never lands between its grep and mv.
         with open(CURATE_DIR / "journal.lock", "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
-            with open(JOURNAL, "a", encoding="utf-8") as f:
-                f.write(json.dumps(entry) + "\n")
+            # Only the append is skipped; the threshold path below still runs, so a
+            # duplicate Stop event can still fire a curate that is already due.
+            if not _duplicate_of_last(entry):
+                with open(JOURNAL, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(entry) + "\n")
     except Exception:
         pass
 

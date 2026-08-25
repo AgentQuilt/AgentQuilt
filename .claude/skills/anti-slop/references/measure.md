@@ -22,9 +22,10 @@ same number taken on the exemplar (code) or on the owner's own writing (prose). 
 
 Model-assumption ledger, 2026-08-24. Assumption: current-generation coding agents
 over-engineer and inflate under iteration; Opus 5 / Fable 5 as implementer, GPT-5.6 as
-reviewer (HumanLayer 2026-08-04: slop-rule trips 86% vs 95%, clone growth 9x; Opus 5 at
-5x the function count of Opus 4.8; SlopCodeBench 2603.24755: verbosity rises in 75.5%
-of trajectories). Guardrails carrying it: the `anti-slop` skill's "On the finished diff"
+reviewer (HumanLayer, re-verified against the source 2026-08-26: slop-rule trips 98%
+Opus 4.8 vs 93% Opus 5, duplication rising 4.6% to 16.8% across checkpoints, Opus 5 at
+5x the function count of the other models; SlopCodeBench 2603.24755: verbosity rises in
+75.5% of trajectories). Guardrails carrying it: the `anti-slop` skill's "On the finished diff"
 section, REVIEW.md's simplicity-axis signals, the diff-size self-check, the closing
 anti-slop pass per wave. Not carried: the STOP list, `Done:/Left out:` and the ruff and
 Biome budgets, which are reporting and hygiene and stay after retirement. Gone when: on

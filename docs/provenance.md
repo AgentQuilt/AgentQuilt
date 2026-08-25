@@ -1,17 +1,18 @@
 # Provenance
 
-Everything in this repository is original work, written for AgentQuilt.
+Everything in this repository is the author's original work, or open-source material reused under a compatible licence and attributed accurately.
 
 ## What this means
 
-- No code, prompt, schema, configuration or data in this repository is copied from any other codebase, product or organisation.
+- Nothing here is copied from a proprietary codebase, product or organisation, and nothing confidential from any client or employer enters the tree in any form.
+- Open-source material is reused only when its licence permits it. Required notices are preserved in `NOTICE`, and the attribution says what was taken and what was rewritten. Hiding a real source is treated the same as copying one.
 - General patterns, ideas and practices from the field are used freely. Ideas are not owned; copies are.
 - Every fixture and example dataset is synthetic.
 - A field name or a term may coincide with one used elsewhere only when it is the plain-English name for the concept.
 
 ## For contributors
 
-Contribute only your own work, under the Developer Certificate of Origin. If you are unsure whether something you want to contribute is yours to give, leave it out and open an issue describing the idea instead.
+Contribute only work that is yours to give, under the Developer Certificate of Origin. If you are unsure whether something is yours to give, leave it out and open an issue describing the idea instead.
 
 ## How it is checked
 

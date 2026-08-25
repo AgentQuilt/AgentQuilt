@@ -1,8 +1,8 @@
 # AgentQuilt
 
-AgentQuilt is an open-source platform for running AI agents for a small business.
+AgentQuilt is an open-source harness for running AI agents in an organisation. The harness carries what every agent needs: users, memory, permissions, approvals and a record of every action. What an agent does for the business lives in skills, plain instructions the harness executes, so an organisation can grow its agents without changing the platform's code.
 
-The planned agents will:
+The first solution built on the harness is for a small business. Its planned agents will:
 
 - update websites
 - answer customers through Telegram, WhatsApp, Viber and web chat

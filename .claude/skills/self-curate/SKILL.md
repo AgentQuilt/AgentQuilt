@@ -9,6 +9,8 @@ disable-model-invocation: false
 
 `$V` as defined in AGENTS.md. This lane writes memory and reads documentation; it edits no factory file and commits nothing in the build repo (vault writes are the owner's to commit). Factory files are `.claude/skills/`, `.claude/agents/`, `.claude/rules/`, `.claude/hooks/`, `.claude/settings.json`, `AGENTS.md`, `REVIEW.md` and `CLAUDE.md`; they are written only through a wave (decision log, 2026-08-24, D5; the deciding step is `curate-fold`).
 
+Lane write scope (decision log, 2026-08-26): in the hook-spawned lane, every vault write the steps below describe (memory zones, the docs-stale line, compaction) is replaced by one appended entry per item in `$V/90-meta/curate-inbox.md` naming its target zone and carrying the text ready to paste; only `suggestions.md` appends (step 4) and `.claude/.curate/` rotation and stamping (step 7) stay direct. `curate-fold` promotes or discards inbox entries. The in-session lane, run with the owner present, writes the zones as described.
+
 ## Procedure
 
 1. Read: `.claude/.curate/journal.jsonl` (snapshot what was read: `SNAP=$(mktemp); cp .claude/.curate/journal.jsonl "$SNAP"`), `.claude/.curate/last_curate.txt` (keep its value as `START_STAMP`), a checksum of the factory files (keep it: `FP() { git ls-files -z -- .claude/skills .claude/agents .claude/rules .claude/hooks .claude/settings.json AGENTS.md REVIEW.md CLAUDE.md | xargs -0 sha1sum; }; BEFORE=$(FP)`) and `git diff --stat`, today's `$V/90-meta/session-log/YYYY-MM-DD.md`, `head -40` of `$V/90-meta/decision-log.md` and `$V/90-meta/open-questions.md`, `$V/Home.md`. Then pick the lane type:

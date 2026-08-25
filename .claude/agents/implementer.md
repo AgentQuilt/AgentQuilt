@@ -16,7 +16,7 @@ Turns a plan into a committed diff. It decides how to realise each task line wit
 
 ## Loop
 
-1. Confirm the worktree the orchestrator created. Done: `git -C <path> branch --show-current` prints the wave branch; every later command uses `git -C` or an absolute path.
+1. Confirm the worktree the orchestrator created. Done: `git -C <path> remote -v` names the repo the brief names and `git -C <path> branch --show-current` prints the wave branch; a mismatch is a stop before any read. Every later command uses `git -C` or an absolute path.
 2. Read the brief and the plan document; check `head -40 $V/90-meta/decision-log.md` and `$V/90-meta/open-questions.md`. Done: a task line that needs a parked answer is reported as a stop, not decided.
 3. Reuse-before-create (`.claude/rules/architecture.md`) on each new part before writing it. Done: every new part has its reuse line for the report.
 4. Build task line by task line, touching only the files the line needs; log unrelated findings for the report. Done: each line maps to a hunk.

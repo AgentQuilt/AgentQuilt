@@ -28,9 +28,10 @@ fi
 REASON="${1:-manual}"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
-# Opt-in. The spawn below runs unattended with permissions bypassed and writes to the
-# sibling vault, so a clone does nothing until AGENTQUILT_CURATE=1 is set (env in the
-# gitignored settings.local.json) and the vault is next door.
+# Opt-in. The spawn below runs unattended with permissions bypassed and appends
+# candidates to the sibling vault's inbox, so a clone does nothing until
+# AGENTQUILT_CURATE=1 is set (env in the gitignored settings.local.json) and the
+# vault is next door.
 [ "${AGENTQUILT_CURATE:-0}" = "1" ] || exit 0
 [ -d "$PROJECT_DIR/../AgentQuilt-Vault" ] || exit 0
 CURATE_DIR="$PROJECT_DIR/.claude/.curate"
@@ -90,7 +91,7 @@ fi
 
 CURATE_CMD=(
   "$CLAUDE_BIN"
-  --print "/self-curate (triggered by: ${REASON}). Memory lane only: edit nothing under .claude/skills/, .claude/agents/, .claude/rules/, .claude/hooks/ or .claude/settings.json, nor AGENTS.md, REVIEW.md or CLAUDE.md (.claude/.curate/ is yours to rotate and stamp), and commit nothing in this repo; a proposed factory change is an entry in the vault suggestions file."
+  --print "/self-curate (triggered by: ${REASON}). Memory lane only: edit nothing under .claude/skills/, .claude/agents/, .claude/rules/, .claude/hooks/ or .claude/settings.json, nor AGENTS.md, REVIEW.md or CLAUDE.md (.claude/.curate/ is yours to rotate and stamp), and commit nothing in this repo. Hook-spawned lane: vault writes are appends to 90-meta/curate-inbox.md (one entry per item, target zone named) and 90-meta/suggestions.md (factory changes) only; no direct zone writes."
   --model "${AGENTQUILT_CURATE_MODEL:-claude-opus-5}"
   --permission-mode bypassPermissions
   --output-format text
