@@ -6,12 +6,13 @@ Deny tier: any `git push` unless the whole command is exactly `git push origin m
 prefix, nothing else on the line). A `push` token counts only where something could run
 it (`PUSH_PROGRAMS`, a `$var` program or a here-string) and never as a git message
 argument (`-m x`, `-mx`, `-am"x"`, `--message=x`), so a commit message may say "push".
+A segment carrying a nested command (`$(`, `${` or a backtick) is the exception: `push`
+anywhere in it denies, whatever its program and whatever a message flag says.
 `$IFS`, a backslash-newline, an unbalanced quote or an unreadable payload deny
-outright (fails closed). A heredoc body
-becomes one quoted token, so its apostrophes parse and its `push` is still seen; a line
-may open several, and an opener inside quotes (`echo '<<EOF'`) or after a `#` comment
-(`echo ok # <<EOF`) is data and opens none.
-A heredoc whose tag this file cannot read, or whose terminator never arrives, denies
+outright (fails closed). A heredoc body becomes one quoted token, so its apostrophes
+parse and its `push` is still seen; a line may open several, and an opener inside quotes
+(`echo '<<EOF'`) or after a `#` comment (`echo ok # <<EOF`) is data and opens none. A
+heredoc whose tag this file cannot read, or whose terminator never arrives, denies
 rather than being guessed at.
 Ask tier: `reset --hard`, `clean -f`, `checkout .`, `restore .`.
 Allow + log: `git commit` (placeholder until the review gate exists; see TODO).
@@ -30,6 +31,9 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\ngit push origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (heredoc body is still scanned)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (unterminated heredoc)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<"}}' | python3 .claude/hooks/git-guard.py                    # deny (tag will not parse)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo \"$(git push origin factory)\""}}' | python3 .claude/hooks/git-guard.py  # deny (command substitution)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"x=`git push origin factory`"}}' | python3 .claude/hooks/git-guard.py  # deny (backticks)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(echo push)\""}}' | python3 .claude/hooks/git-guard.py  # deny (no message flag shields a substitution)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok # <<EOF\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a comment hides no opener, and its newline survives)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<END-JSON\nit'"'"'s\nEND-JSON\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a hyphen is part of the tag)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<'"'"'A'"'"' <<'"'"'B'"'"'\nit'"'"'s one\nA\nit'"'"'s two\nB\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (after two bodies opened on one line)
@@ -49,6 +53,8 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<'"'"'END-JSON'"'"'\nit'"'"'s\nEND-JSON"}}' | python3 .claude/hooks/git-guard.py  # allow (hyphen in a quoted tag)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<-EOF\n\tit'"'"'s\n\tEOF"}}' | python3 .claude/hooks/git-guard.py  # allow (<<- strips leading tabs)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<'"'"'EO F'"'"'\nx\nEO F"}}' | python3 .claude/hooks/git-guard.py  # allow (space inside a quoted tag)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo \"$(date)\""}}' | python3 .claude/hooks/git-guard.py        # allow (a substitution with no push)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"pushed the date\""}}' | python3 .claude/hooks/git-guard.py  # allow (plain message, no substitution)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok # <<EOF"}}' | python3 .claude/hooks/git-guard.py          # allow (a commented-out opener)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo \"a # <<EOF\""}}' | python3 .claude/hooks/git-guard.py       # allow (quoted: neither comment nor opener)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"grep -rn push .claude/hooks/"}}' | python3 .claude/hooks/git-guard.py  # allow (grep cannot push)
@@ -71,6 +77,7 @@ HEREDOC = re.compile(r"""(?<!<)<<(?!<)(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s|&;<
 QUOTE_DENIED = "git-guard: unbalanced quote; cannot tokenize, denied (fails closed)"
 HEREDOC_DENIED = "git-guard: unrecognised or unterminated heredoc; denied (fails closed)"
 MESSAGE = re.compile(r"-[a-zA-Z]*m")  # a short-option cluster ending in m
+NESTED = re.compile(r"\$\(|\$\{|`")  # a command substitution runs whatever it holds
 VAR = re.compile(r"\$\{?\w")
 SEPARATORS = set("();|&\n")  # `<`, `>` stay in the segment so a here-string is visible
 PUSH_PROGRAMS = {"git", "sh", "bash", "zsh", "eval", "exec", "env", "command", "xargs"}
@@ -172,6 +179,8 @@ def parse(command: str) -> list[list[str]]:
 
 def pushes(seg: list[str]) -> bool:
     """A `push` token in a segment that could run one; a git message argument is not a push."""
+    if any(NESTED.search(token) for token in seg) and any("push" in token for token in seg):
+        return True  # a nested command runs anywhere, and no message flag shields it
     program = os.path.basename(seg[0])
     if not (program in PUSH_PROGRAMS or VAR.search(seg[0]) or "<<<" in seg):
         return False
