@@ -1,12 +1,12 @@
 ---
 name: curate-fold
-description: Decides each open entry in the vault's suggestions file (accept, reject, defer) and routes accepted factory changes into a wave. Fable fires it at a phase boundary.
+description: Decides each open entry in the vault's suggestions file (accept, reject, defer) and routes accepted factory changes into a wave. Fable fires it at the start of every wave.
 disable-model-invocation: true
 ---
 
 # curate-fold
 
-`$V` as defined in AGENTS.md. The file is `$V/90-meta/suggestions.md`, written by `self-curate` (decision log, 2026-08-24, D5). Runs after a wave merges, or on `wrap up` before `handoff`.
+`$V` as defined in AGENTS.md. The file is `$V/90-meta/suggestions.md`, written by `self-curate` (decision log, 2026-08-24, D5). Fires at the start of every wave, and whenever that file reaches five open entries.
 
 ## Procedure
 
