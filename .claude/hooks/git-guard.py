@@ -7,8 +7,8 @@ prefix, nothing else on the line). A `push` token counts only where something co
 it (`PUSH_PROGRAMS`, a `$var` program or a here-string) and never as a git message
 argument (`-m x`, `-mx`, `-am"x"`, `--message=x`), so a commit message may say "push". `$IFS`, a backslash-newline, an
 unbalanced quote or an unreadable payload deny outright (fails closed). A heredoc body
-becomes one quoted token, so its apostrophes parse and its `push` is still seen; an
-opener inside quotes (`echo '<<EOF'`) is data and opens no body.
+becomes one quoted token, so its apostrophes parse and its `push` is still seen; a line
+may open several, and an opener inside quotes (`echo '<<EOF'`) is data and opens none.
 Ask tier: `reset --hard`, `clean -f`, `checkout .`, `restore .`.
 Allow + log: `git commit` (placeholder until the review gate exists; see TODO).
 
@@ -24,6 +24,8 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"g=git; $g push origin factory"}}' | python3 .claude/hooks/git-guard.py    # deny ($var program)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"bash <<< \"git push origin factory\""}}' | python3 .claude/hooks/git-guard.py  # deny (here-string)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\ngit push origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (heredoc body is still scanned)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (body never terminated)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<'"'"'A'"'"' <<'"'"'B'"'"'\nit'"'"'s one\nA\nit'"'"'s two\nB\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (after two bodies opened on one line)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo '"'"'<<EOF'"'"'; git push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a quoted `<<` opens no heredoc)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo '"'"'<<EOF'"'"'\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (same, on the next line)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m x; git push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (the message ends at its segment)
@@ -36,6 +38,7 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -mpush"}}' | python3 .claude/hooks/git-guard.py     # allow (value attached to -m)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m=push"}}' | python3 .claude/hooks/git-guard.py    # allow (value attached with =)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -am\"push this\""}}' | python3 .claude/hooks/git-guard.py  # allow (short-option cluster)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<'"'"'A'"'"' <<'"'"'B'"'"'\nit'"'"'s one\nA\nit'"'"'s two\nB"}}' | python3 .claude/hooks/git-guard.py  # allow (two apostrophe bodies, one line)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"grep -rn push .claude/hooks/"}}' | python3 .claude/hooks/git-guard.py  # allow (grep cannot push)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"grep -n \"the profile'"'"'s targets\" file"}}' | python3 .claude/hooks/git-guard.py  # allow (apostrophe inside a double-quoted string)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<'"'"'EOF'"'"'\nit'"'"'s fine\nEOF"}}' | python3 .claude/hooks/git-guard.py  # allow (apostrophe in a heredoc body)
@@ -73,13 +76,14 @@ def decide(decision: str, reason: str) -> None:
     }}))
 
 
-def heredoc_opener(line: str, quote: str) -> tuple[str | None, str]:
-    """This line's first unquoted heredoc tag, and the quote state left open at its end.
+def heredoc_tags(line: str, quote: str) -> tuple[list[str], str]:
+    """Every unquoted heredoc tag this line opens, in order, and the quote left open at its end.
 
     `quote` carries an open quote across lines. A `<<` inside quotes is data, so
     `echo '<<EOF'` opens no body and the line after it stays a command the guard reads.
     """
-    tag, index = None, 0
+    tags: list[str] = []
+    index = 0
     while index < len(line):
         char = line[index]
         if quote:
@@ -91,12 +95,13 @@ def heredoc_opener(line: str, quote: str) -> tuple[str | None, str]:
             index += 1
         elif char in "'\"":
             quote = char
-        elif tag is None:
+        else:
             opener = HEREDOC.match(line, index)
             if opener:
-                tag, index = opener.group(2), opener.end() - 1
+                tags.append(opener.group(2))
+                index = opener.end() - 1
         index += 1
-    return tag, quote
+    return tags, quote
 
 
 def parse(command: str) -> list[list[str]]:
@@ -104,22 +109,27 @@ def parse(command: str) -> list[list[str]]:
 
     Each heredoc body (after `<<TAG`, `<<'TAG'` or `<<"TAG"`, up to the line equal to TAG)
     is first re-quoted into one token, so its apostrophes stop breaking the parse while its
-    text stays scannable.
+    text stays scannable. One line may open several, so the tags queue in the order written
+    and each terminator closes the head; an unterminated body is scanned where it ends.
     """
     kept: list[str] = []
     body: list[str] = []
-    tag = None
+    pending: list[str] = []
     quote = ""
     for line in command.split("\n"):
-        if tag is not None:
-            if line == tag:
+        if pending:
+            if line == pending[0]:
                 kept[-1] += " " + shlex.quote("\n".join(body))
-                tag, body = None, []
+                pending.pop(0)
+                body = []
             else:
                 body.append(line)
             continue
         kept.append(line)
-        tag, quote = heredoc_opener(line, quote)
+        tags, quote = heredoc_tags(line, quote)
+        pending.extend(tags)
+    if body:  # the command ended inside a body; the shell would still run it
+        kept[-1] += " " + shlex.quote("\n".join(body))
     lexer = shlex.shlex("\n".join(kept), posix=True, punctuation_chars="();<>|&\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
