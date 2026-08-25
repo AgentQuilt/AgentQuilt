@@ -12,8 +12,13 @@
 # RUNNING flag file (treated as stale after 15 minutes). Safe to call from
 # any hook; never blocks the caller.
 #
-# Smoke test: CLAUDE_PROJECT_DIR=$PWD bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no spawn without AGENTQUILT_CURATE=1
-#             AGENTQUILT_CURATE=1 CLAUDE_PROJECT_DIR=$PWD bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no spawn when the journal is empty
+# AGENTQUILT_CURATE_DRYRUN=1 prints the claude argument vector it would spawn, one
+# argument per line, and exits 0, so the smoke test below never starts a real curate.
+#
+# Smoke test (run from the repo root, dry-run throughout):
+#   AGENTQUILT_CURATE=0 CLAUDE_PROJECT_DIR=$PWD AGENTQUILT_CURATE_DRYRUN=1 bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no output: opt-in absent
+#   AGENTQUILT_CURATE=1 CLAUDE_PROJECT_DIR=$PWD AGENTQUILT_CURATE_DRYRUN=1 bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, the command when the journal has entries, no output when it is empty
+#   AGENTQUILT_CURATE=1 CLAUDE_PROJECT_DIR=$PWD AGENTQUILT_CURATE_DRYRUN=1 bash .claude/hooks/run-curate.sh manual </dev/null; echo $?   # 0, prints the claude command, spawns nothing
 
 set -uo pipefail
 
@@ -84,6 +89,19 @@ if [ -z "$CLAUDE_BIN" ]; then
   exit 0
 fi
 
+CURATE_CMD=(
+  "$CLAUDE_BIN"
+  --print "/self-curate (triggered by: ${REASON}). Memory lane only: edit nothing under .claude/skills/, .claude/agents/, .claude/rules/, .claude/hooks/ or .claude/settings.json, nor AGENTS.md, REVIEW.md or CLAUDE.md (.claude/.curate/ is yours to rotate and stamp), and commit nothing in this repo; a proposed factory change is an entry in the vault suggestions file."
+  --model "${AGENTQUILT_CURATE_MODEL:-claude-opus-5}"
+  --permission-mode bypassPermissions
+  --output-format text
+)
+
+if [ "${AGENTQUILT_CURATE_DRYRUN:-0}" = "1" ]; then
+  printf '%s\n' "${CURATE_CMD[@]}"
+  exit 0
+fi
+
 TS=$(date -u +"%Y%m%dT%H%M%SZ")
 LOG="$LOG_DIR/curate-${TS}-${REASON}.log"
 
@@ -94,13 +112,7 @@ touch "$RUNNING_FLAG"
 (
   trap 'rm -f "$RUNNING_FLAG"' EXIT
   cd "$PROJECT_DIR" 2>/dev/null || exit 0
-  CLAUDE_SELF_CURATE_RUNNING=1 \
-    "$CLAUDE_BIN" \
-      --print "/self-curate (triggered by: ${REASON}). Memory lane only: edit nothing under .claude/skills/, .claude/agents/, .claude/rules/, .claude/hooks/ or .claude/settings.json, nor AGENTS.md, REVIEW.md or CLAUDE.md (.claude/.curate/ is yours to rotate and stamp), and commit nothing in this repo; a proposed factory change is an entry in the vault suggestions file." \
-      --model "${AGENTQUILT_CURATE_MODEL:-claude-opus-5}" \
-      --permission-mode bypassPermissions \
-      --output-format text \
-      > "$LOG" 2>&1
+  CLAUDE_SELF_CURATE_RUNNING=1 "${CURATE_CMD[@]}" > "$LOG" 2>&1
 ) </dev/null >/dev/null 2>&1 &
 
 disown 2>/dev/null || true
