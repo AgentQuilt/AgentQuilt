@@ -114,14 +114,7 @@ def decide(decision: str, reason: str) -> None:
 
 
 def scan_line(line: str, quote: str) -> tuple[str, list[tuple[str, bool]], str]:
-    """The line's code, the heredocs it opens as (tag, strips-tabs), and the quote left open.
-
-    `quote` carries an open quote across lines. A `<<` or `#` inside quotes is data; outside
-    them a `#` after whitespace, an operator or at column zero comments out the rest of the
-    line, so neither `echo '<<EOF'` nor `echo ok;# <<EOF` opens a body and the line after
-    either stays a command to read.
-    An opener whose tag does not parse raises: the guard refuses rather than guessing.
-    """
+    """The line's code, the heredocs it opens as (tag, strips-tabs), and the quote left open."""
     tags: list[tuple[str, bool]] = []
     index = 0
     while index < len(line):
@@ -149,13 +142,7 @@ def scan_line(line: str, quote: str) -> tuple[str, list[tuple[str, bool]], str]:
 
 
 def parse(command: str) -> list[list[str]]:
-    """Cut the command into segments at the shell operators; ValueError carries the deny reason.
-
-    Each heredoc body (after `<<TAG`, `<<-TAG`, `<<'TAG'` or `<<"TAG"`, up to the terminator
-    line) is first re-quoted into one token, so its apostrophes stop breaking the parse while
-    its text stays scannable. One line may open several, so the tags queue in the order
-    written and each terminator closes the head; `<<-` strips leading tabs from that line.
-    """
+    """Cut the command into segments at the shell operators; ValueError carries the deny reason."""
     kept: list[str] = []
     body: list[str] = []
     pending: list[tuple[str, bool]] = []
@@ -200,7 +187,7 @@ def parse(command: str) -> list[list[str]]:
 def pushes(seg: list[str]) -> bool:
     """A `push` token in a segment that could run one; a git message argument is not a push."""
     if any(NESTED.search(token) for token in seg) and any("push" in token for token in seg):
-        return True  # a nested command runs anywhere, and no message flag shields it
+        return True
     program = os.path.basename(seg[0])
     if not (program in PUSH_PROGRAMS or VAR.search(seg[0]) or "<<<" in seg):
         return False

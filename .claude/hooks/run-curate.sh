@@ -12,8 +12,7 @@
 # RUNNING flag file (treated as stale after 15 minutes). Safe to call from
 # any hook; never blocks the caller.
 #
-# AGENTQUILT_CURATE_DRYRUN=1 prints the claude argument vector it would spawn, one
-# argument per line, and exits 0, so the smoke test below never starts a real curate.
+# AGENTQUILT_CURATE_DRYRUN=1 prints the claude argv it would spawn, one per line, and exits 0.
 #
 # Smoke test (run from the repo root, dry-run throughout):
 #   AGENTQUILT_CURATE=0 CLAUDE_PROJECT_DIR=$PWD AGENTQUILT_CURATE_DRYRUN=1 bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no output: opt-in absent
