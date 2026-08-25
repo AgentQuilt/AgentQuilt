@@ -4,10 +4,6 @@ paths: [".claude/hooks/**", ".claude/settings.json"]
 
 # Hook authoring invariants
 
-- A decision goes under `hookSpecificOutput` (`hookEventName`, `permissionDecision`, `permissionDecisionReason`); a top-level `permissionDecision` is ignored and the deny silently no-ops.
-- Parse the payload with python's `json`, never grep or regex it; a quoted command truncates at the first escaped quote.
-- Build output with `json.dumps`; never interpolate a path or command into hand-built JSON, since a quote or newline makes the deny malformed and ignored.
-- Failure polarity by tier: an ask-tier hook fails to `ask` on an unparseable payload; a deny-tier hook fails to `deny`.
-- Resolve symlinks through the final path component before comparing paths, and compare with a trailing `/` so `/src` never matches `/src-old`.
-- Every hook's header comment records its piped-JSON smoke test (command and expected exit code or decision); rerun it after any edit.
-- Hooks are advisory scope guards, not a sandbox; worktree isolation is the real isolation.
+- Every hook's header comment records its piped smoke test (command and expected exit code or decision); rerun it after any edit.
+- Hooks are advisory scope guards, not a sandbox; worktree isolation is the real isolation. Ref protection lives in the git-native `pre-push` hook, which sees the real ref and cannot be quoted around.
+- No PreToolUse command guards: a guard that parses shell text re-implements the shell and fails on ordinary text (removed 2026-08-25, decision log). A new PreToolUse hook is an owner decision, not a wave.

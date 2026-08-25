@@ -7,8 +7,9 @@ two disagree, AGENTS.md wins.** This file adds only the Claude Code wiring.
 
 ## Claude Code wiring
 
-- **Hooks** live in `.claude/settings.json`: `PreToolUse` on Bash → `git-guard.py` and
-  `bash-guard.py`; `Stop` → `post-turn-journal.py`; `SessionEnd` / `PreCompact` → `run-curate.sh`.
+- **Hooks** live in `.claude/settings.json`: `Stop` → `post-turn-journal.py`; `SessionEnd` /
+  `PreCompact` → `run-curate.sh`. Push protection is the git-native `pre-push` hook, not a
+  PreToolUse guard.
   Curate runs are opt-in: nothing spawns unless `AGENTQUILT_CURATE=1` is set (env in the
   gitignored `settings.local.json`) and the vault is next door. Logs land in `.claude/.curate/logs/`. Authoring rules: `.claude/rules/hooks.md`.
 - **Skills** are catalogued in `.claude/skills/INDEX.md`; any new skill must be added there.

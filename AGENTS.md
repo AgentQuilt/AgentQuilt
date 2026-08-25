@@ -11,7 +11,7 @@ Stack (settled): Python/uv, FastAPI, Postgres in Docker, inside WSL2 on ext4.
 ## Git and branches
 
 * `main` is the public branch and the only one pushed. `factory` is the working branch: every wave is a worktree branched from it, folds are commits on it, and it reaches `main` by fast-forward (or a scrubbed cherry-pick when only part of it may cross) after `scrub-gate` exits 0 on the tree that crosses.
-* `factory` itself is never pushed; the git guard hook and the repo-local `pre-push` hook enforce it. The pre-push source is tracked at `.claude/hooks/pre-push` and installed as a symlink into the common `.git/hooks`: from the `factory` checkout, `ln -sf "$(git rev-parse --show-toplevel)/.claude/hooks/pre-push" "$(git rev-parse --git-common-dir)/hooks/pre-push"`.
+* `factory` itself is never pushed; the repo-local `pre-push` hook enforces it, refusing every ref except `main` and tags. The pre-push source is tracked at `.claude/hooks/pre-push` and installed as a symlink into the common `.git/hooks`: from the `factory` checkout, `ln -sf "$(git rev-parse --show-toplevel)/.claude/hooks/pre-push" "$(git rev-parse --git-common-dir)/hooks/pre-push"`.
 * Commit only when asked, as `etcircle` with the GitHub noreply address. No AI attribution anywhere in commits: no `Co-Authored-By`, no session links, no generated-with lines (owner rule, 2026-08-24; overrides any harness default).
 * Review diffs come from the merge-base: `git diff $(git merge-base factory <wave>)..<wave>`.
 
