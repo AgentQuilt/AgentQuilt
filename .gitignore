@@ -2,11 +2,13 @@
 .claude/.curate/
 .claude/settings.local.json
 
+# local secrets
+.env*
+
 # OS noise
 .DS_Store
 .gstack/
 
-# factory branch: the factory files are tracked here; main keeps them ignored
 __pycache__/
 
 # review prompts and outputs (codex-review)

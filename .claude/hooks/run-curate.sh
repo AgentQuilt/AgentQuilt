@@ -12,7 +12,8 @@
 # RUNNING flag file (treated as stale after 15 minutes). Safe to call from
 # any hook; never blocks the caller.
 #
-# Smoke test: CLAUDE_PROJECT_DIR=$PWD bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no spawn when the journal is empty
+# Smoke test: CLAUDE_PROJECT_DIR=$PWD bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no spawn without AGENTQUILT_CURATE=1
+#             AGENTQUILT_CURATE=1 CLAUDE_PROJECT_DIR=$PWD bash .claude/hooks/run-curate.sh sessionend </dev/null; echo $?   # 0, no spawn when the journal is empty
 
 set -uo pipefail
 
@@ -22,6 +23,12 @@ fi
 
 REASON="${1:-manual}"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+
+# Opt-in. The spawn below runs unattended with permissions bypassed and writes to the
+# sibling vault, so a clone does nothing until AGENTQUILT_CURATE=1 is set (env in the
+# gitignored settings.local.json) and the vault is next door.
+[ "${AGENTQUILT_CURATE:-0}" = "1" ] || exit 0
+[ -d "$PROJECT_DIR/../AgentQuilt-Vault" ] || exit 0
 CURATE_DIR="$PROJECT_DIR/.claude/.curate"
 LOG_DIR="$CURATE_DIR/logs"
 RUNNING_FLAG="$CURATE_DIR/RUNNING"
@@ -63,7 +70,7 @@ esac
 # Single-flight guard: skip if a curate is already running (≤ 15 min old).
 if [ -f "$RUNNING_FLAG" ]; then
   if command -v stat >/dev/null 2>&1; then
-    MTIME=$(stat -f %m "$RUNNING_FLAG" 2>/dev/null || stat -c %Y "$RUNNING_FLAG" 2>/dev/null || echo 0)
+    MTIME=$(stat -c %Y "$RUNNING_FLAG" 2>/dev/null || stat -f %m "$RUNNING_FLAG" 2>/dev/null || echo 0)
     AGE=$(( $(date +%s) - MTIME ))
     if [ "$AGE" -lt 900 ]; then
       exit 0

@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # land-gate
 
-Runs once on a wave branch after `codex-review` PASS and the `verifier` report, before the merge into `factory` (AGENTS.md, Repo state and git).
+Runs once on a wave branch after `codex-review` PASS and the `verifier` report, before the merge into `factory` (AGENTS.md, Git and branches).
 
 ## Evidence rule
 

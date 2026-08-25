@@ -15,6 +15,7 @@ Smoke test (run from the repo root; expected decision after each):
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git -C x push origin main"}}' | python3 .claude/hooks/git-guard.py    # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git$IFS push origin main"}}' | python3 .claude/hooks/git-guard.py    # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git reset --hard; git push origin main"}}' | python3 .claude/hooks/git-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh -c \"git push origin factory\""}}' | python3 .claude/hooks/git-guard.py    # deny (wrapper shell)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git reset --hard HEAD~1"}}' | python3 .claude/hooks/git-guard.py   # ask
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' | python3 .claude/hooks/git-guard.py           # exit 0, one line appended to .claude/.curate/git-guard.log
   printf 'not json' | python3 .claude/hooks/git-guard.py                                                                        # deny (fails closed)
@@ -62,10 +63,11 @@ def main() -> int:
         decide("deny", "git-guard: unbalanced quote; cannot tokenize, denied (fails closed)")
         return 0
     git_args = [seg[seg.index("git") + 1:] for seg in segments if "git" in seg]
-    if any("push" in a for a in git_args):
+    # `push` inside any token, not only after `git`: catches sh -c "git push ...", $g push, and here-strings.
+    if any("push" in token for seg in segments for token in seg):
         if segments != [ALLOWED_PUSH]:
             decide("deny", f"git-guard: only the exact command `{' '.join(ALLOWED_PUSH)}` may push; "
-                   "no force push, no other remote or ref, and `factory` is never pushed (AGENTS.md, Repo state and git)")
+                   "no force push, no wrapper shell, no other remote or ref, and `factory` is never pushed (AGENTS.md, Git and branches)")
         return 0
     for sub, hits, reason in ASK:
         if any(sub in a and hits(a[a.index(sub) + 1:]) for a in git_args):
