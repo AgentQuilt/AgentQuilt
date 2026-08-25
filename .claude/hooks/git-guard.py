@@ -6,9 +6,11 @@ Deny tier: any `git push` unless the whole command is exactly `git push origin m
 prefix, nothing else on the line). A `push` token counts only where something could run
 it (`PUSH_PROGRAMS`, a `$var` program or a here-string) and never as a git message
 argument (`-m x`, `-mx`, `-am"x"`, `--message=x`), so a commit message may say "push".
-`$IFS`, a backslash-newline, an unbalanced quote or an unreadable payload deny outright (fails closed). A heredoc body
+`$IFS`, a backslash-newline, an unbalanced quote or an unreadable payload deny
+outright (fails closed). A heredoc body
 becomes one quoted token, so its apostrophes parse and its `push` is still seen; a line
-may open several, and an opener inside quotes (`echo '<<EOF'`) is data and opens none.
+may open several, and an opener inside quotes (`echo '<<EOF'`) or after a `#` comment
+(`echo ok # <<EOF`) is data and opens none.
 A heredoc whose tag this file cannot read, or whose terminator never arrives, denies
 rather than being guessed at.
 Ask tier: `reset --hard`, `clean -f`, `checkout .`, `restore .`.
@@ -28,6 +30,7 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\ngit push origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (heredoc body is still scanned)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (unterminated heredoc)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<"}}' | python3 .claude/hooks/git-guard.py                    # deny (tag will not parse)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok # <<EOF\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a comment hides no opener, and its newline survives)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<END-JSON\nit'"'"'s\nEND-JSON\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a hyphen is part of the tag)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<'"'"'A'"'"' <<'"'"'B'"'"'\nit'"'"'s one\nA\nit'"'"'s two\nB\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (after two bodies opened on one line)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo '"'"'<<EOF'"'"'; git push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a quoted `<<` opens no heredoc)
@@ -46,6 +49,8 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<'"'"'END-JSON'"'"'\nit'"'"'s\nEND-JSON"}}' | python3 .claude/hooks/git-guard.py  # allow (hyphen in a quoted tag)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<-EOF\n\tit'"'"'s\n\tEOF"}}' | python3 .claude/hooks/git-guard.py  # allow (<<- strips leading tabs)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<'"'"'EO F'"'"'\nx\nEO F"}}' | python3 .claude/hooks/git-guard.py  # allow (space inside a quoted tag)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok # <<EOF"}}' | python3 .claude/hooks/git-guard.py          # allow (a commented-out opener)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo \"a # <<EOF\""}}' | python3 .claude/hooks/git-guard.py       # allow (quoted: neither comment nor opener)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"grep -rn push .claude/hooks/"}}' | python3 .claude/hooks/git-guard.py  # allow (grep cannot push)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"grep -n \"the profile'"'"'s targets\" file"}}' | python3 .claude/hooks/git-guard.py  # allow (apostrophe inside a double-quoted string)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<'"'"'EOF'"'"'\nit'"'"'s fine\nEOF"}}' | python3 .claude/hooks/git-guard.py  # allow (apostrophe in a heredoc body)
@@ -87,11 +92,12 @@ def decide(decision: str, reason: str) -> None:
     }}))
 
 
-def heredoc_tags(line: str, quote: str) -> tuple[list[tuple[str, bool]], str]:
-    """Every unquoted heredoc this line opens as (tag, strips-tabs), and the quote left open.
+def scan_line(line: str, quote: str) -> tuple[str, list[tuple[str, bool]], str]:
+    """The line's code, the heredocs it opens as (tag, strips-tabs), and the quote left open.
 
-    `quote` carries an open quote across lines. A `<<` inside quotes is data, so
-    `echo '<<EOF'` opens no body and the line after it stays a command the guard reads.
+    `quote` carries an open quote across lines. A `<<` or `#` inside quotes is data; outside
+    them a `#` starting a word comments out the rest of the line, so neither `echo '<<EOF'`
+    nor `echo ok # <<EOF` opens a body and the line after either stays a command to read.
     An opener whose tag does not parse raises: the guard refuses rather than guessing.
     """
     tags: list[tuple[str, bool]] = []
@@ -107,6 +113,8 @@ def heredoc_tags(line: str, quote: str) -> tuple[list[tuple[str, bool]], str]:
             index += 1
         elif char in "'\"":
             quote = char
+        elif char == "#" and (index == 0 or line[index - 1] in " \t"):
+            return line[:index], tags, quote
         elif HEREDOC_OPEN.match(line, index):
             opener = HEREDOC.match(line, index)
             if not opener:
@@ -115,7 +123,7 @@ def heredoc_tags(line: str, quote: str) -> tuple[list[tuple[str, bool]], str]:
             tags.append((tag, bool(opener.group(1))))
             index = opener.end() - 1
         index += 1
-    return tags, quote
+    return line, tags, quote
 
 
 def parse(command: str) -> list[list[str]]:
@@ -140,12 +148,13 @@ def parse(command: str) -> list[list[str]]:
             else:
                 body.append(line)
             continue
-        kept.append(line)
-        tags, quote = heredoc_tags(line, quote)
+        code, tags, quote = scan_line(line, quote)
+        kept.append(code)
         pending.extend(tags)
     if pending:
         raise ValueError(HEREDOC_DENIED)
     lexer = shlex.shlex("\n".join(kept), posix=True, punctuation_chars="();<>|&\n")
+    lexer.commenters = ""  # scan_line already removed comments, keeping the newline they hide
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     try:
