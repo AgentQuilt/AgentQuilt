@@ -72,6 +72,8 @@ Fable orchestrates and plans · Opus sub-agents execute · Codex peer-reviews.
 |Investigation, scoping, bulk reading, implementation waves, browser work, doc/spec execution|Opus sub-agents (worktree isolation for anything non-trivial)|
 |Peer review of every plan and every diff|Codex (`codex exec -m gpt-5.6-sol`, diff inlined). The in-house `reviewer` agent is the fallback when Codex is down and the reviewer of non-diff artefacts.|
 
+Codex carve-out: a diff whose every file is Markdown prose may land with `security-reviewer` and `anti-slop` in place of Codex, and any diff touching `.claude/hooks/`, a script, `settings.json` or code goes to Codex.
+
 Canonical loop: Opus investigates → Fable plans → Codex reviews the plan → Opus implements → Codex reviews the diff → Fable folds, re-gates, merges. Fable does no token-heavy execution and never drives a browser; Codex never implements; the implementer is never its own reviewer. Judgment-shaped factory files (skills, agents, rules, this file, REVIEW.md, prompt templates) and every user-facing text (README, descriptions, user and architecture docs, release notes, UI copy) are written by Fable or Fable sub-agents; bulk and mechanical work goes to Opus sub-agents (owner, 2026-08-24 and 2026-08-25).
 
 Fable classifies every decision: Mechanical (decide silently) · Taste (decide, surface at the gate) · User Challenge (never auto-decided; present it as: what you said / what we recommend / why / what we might be missing / cost if wrong).
