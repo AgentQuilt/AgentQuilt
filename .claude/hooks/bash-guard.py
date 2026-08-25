@@ -8,7 +8,8 @@ patterns in DENY, and `$IFS` or a backslash-newline anywhere.
 Ask tier: any other `rm` with both -r and -f; a command shlex cannot tokenize
 (an unbalanced quote, e.g. a heredoc containing an apostrophe).
 
-Smoke test (run from the repo root; expected decision after each):
+Smoke test (run from the repo root; expected decision after each), one case per DENY rule.
+Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/bash-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf ./build"}}' | python3 .claude/hooks/bash-guard.py     # ask
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' | python3 .claude/hooks/bash-guard.py           # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf -- /"}}' | python3 .claude/hooks/bash-guard.py        # deny
@@ -16,7 +17,17 @@ Smoke test (run from the repo root; expected decision after each):
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm$IFS-rf$IFS/"}}' | python3 .claude/hooks/bash-guard.py     # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"rm -rf $HOME"}}' | python3 .claude/hooks/bash-guard.py       # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<EOF\nit'"'"'s fine\nEOF"}}' | python3 .claude/hooks/bash-guard.py  # ask (unbalanced quote)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"psql -c \"DROP DATABASE agentquilt\""}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"psql -c \"TRUNCATE TABLE invoices\""}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"uv run alembic downgrade -1"}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"docker volume rm agentquilt_pgdata"}}' | python3 .claude/hooks/bash-guard.py  # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"docker compose down -v"}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"docker system prune -a"}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"uv cache clean"}}' | python3 .claude/hooks/bash-guard.py      # deny (no package named)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"mkfs.ext4 /dev/sdb1"}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"dd if=/dev/zero of=/dev/sda"}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"wsl.exe --unregister Ubuntu"}}' | python3 .claude/hooks/bash-guard.py  # deny
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"uv cache clean ruff"}}' | python3 .claude/hooks/bash-guard.py  # allow (one package)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"ls -la"}}' | python3 .claude/hooks/bash-guard.py             # no output, exit 0 (allow)
   printf 'not json' | python3 .claude/hooks/bash-guard.py                                                                # deny (fails closed)
 """
