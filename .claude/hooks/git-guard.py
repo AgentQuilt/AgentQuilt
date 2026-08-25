@@ -8,14 +8,15 @@ it (`PUSH_PROGRAMS`, a `$var` program or a here-string) and never as a git messa
 argument (`-m x`, `-mx`, `-am"x"`, `--message=x`), so a commit message may say "push".
 A segment carrying a nested command (`$(`, `${` or a backtick) is the exception: `push`
 anywhere in it denies, whatever its program and whatever a message flag says.
-`$IFS`, a backslash-newline, an unbalanced quote or an unreadable payload deny
+`$IFS`, empty quotes, a backslash-newline, an unbalanced quote or an unreadable payload deny
 outright (fails closed). A heredoc body becomes one quoted token, so its apostrophes
 parse and its `push` is still seen; a line may open several, and an opener inside quotes
 (`echo '<<EOF'`) or after a `#` comment (`echo ok # <<EOF`) is data and opens none. A
 heredoc whose tag this file cannot read, or whose terminator never arrives, denies
 rather than being guessed at, and `push` anywhere in a body denies whatever program the
-body feeds: parsing then decides quote balance only, so a misread comment or tag can
-cost a false deny but can never hide a push.
+body feeds; a body a shell will run is re-read as code, so `push` split across tokens is
+seen too. Parsing then decides quote balance only: a misread comment or tag can cost a
+false deny but can never hide a push.
 Ask tier: `reset --hard`, `clean -f`, `checkout .`, `restore .`.
 Allow + log: `git commit` (placeholder until the review gate exists; see TODO).
 
@@ -37,6 +38,10 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"x=`git push origin factory`"}}' | python3 .claude/hooks/git-guard.py  # deny (backticks)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(echo push)\""}}' | python3 .claude/hooks/git-guard.py  # deny (no message flag shields a substitution)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok;# <<EOF\ngit push origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (a comment may start right after a semicolon)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git pu\"\"sh origin main"}}' | python3 .claude/hooks/git-guard.py  # deny (empty quotes are obfuscation)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<EOF\ngit pu\"\"sh origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (same, inside a body)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"bash <<'"'"'EOF'"'"'\ng=git; $g push origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (a body a shell runs is code)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\necho it'"'"'s\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (shell code that will not tokenize)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<'"'"'EOF'"'"'\nprint(\"push\")\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (push in a body, whatever reads it)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<END-JSON\ngit push origin factory\nEND-JSON"}}' | python3 .claude/hooks/git-guard.py  # deny (same, unquoted tag)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok # <<EOF\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a comment hides no opener, and its newline survives)
@@ -75,7 +80,7 @@ import shlex
 import sys
 from datetime import datetime, timezone
 
-OBFUSCATED = re.compile(r"\$\{?IFS\}?|\\\n")
+OBFUSCATED = re.compile(r"\$\{?IFS\}?|\\\n|\"\"|''")
 HEREDOC_OPEN = re.compile(r"(?<!<)<<(?!<)")
 # `<<`, an optional `-`, then a quoted delimiter or a bare word up to whitespace or an operator
 HEREDOC = re.compile(r"""(?<!<)<<(?!<)(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s|&;<>()]+))""")
@@ -157,7 +162,9 @@ def parse(command: str) -> list[list[str]]:
             tag, strips_tabs = pending[0]
             if (line.lstrip("\t") if strips_tabs else line) == tag:
                 text = "\n".join(body)
-                if "push" in text:
+                shell_fed = any(os.path.basename(word) in PUSH_PROGRAMS or VAR.search(word)
+                                for word in kept[-1].split())
+                if "push" in text or (shell_fed and any(pushes(s) for s in parse(text))):
                     raise ValueError(BODY_DENIED)
                 kept[-1] += " " + shlex.quote(text)
                 pending.pop(0)
@@ -218,7 +225,8 @@ def main() -> int:
         decide("deny", "git-guard: unreadable hook payload; denied (fails closed)")
         return 0
     if OBFUSCATED.search(command):
-        decide("deny", "git-guard: $IFS or backslash-newline in a command is obfuscation; denied")
+        decide("deny", "git-guard: $IFS, empty quotes or a backslash-newline "
+               "in a command is obfuscation; denied")
         return 0
     try:
         segs = parse(command)
