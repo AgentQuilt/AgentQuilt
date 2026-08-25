@@ -23,6 +23,9 @@ Allow + log: `git commit` (placeholder until the review gate exists; see TODO).
 Smoke test (run from the repo root; expected decision after each).
 Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' | python3 .claude/hooks/git-guard.py      # no output, exit 0 (allow)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin main "}}' | python3 .claude/hooks/git-guard.py     # allow (a trailing space is stripped)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin main # extra"}}' | python3 .claude/hooks/git-guard.py  # deny (a trailing comment is still not the exact command)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin main; echo done"}}' | python3 .claude/hooks/git-guard.py  # deny (anything after it disqualifies)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin factory"}}' | python3 .claude/hooks/git-guard.py   # permissionDecision deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' | python3 .claude/hooks/git-guard.py  # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git -C x push origin main"}}' | python3 .claude/hooks/git-guard.py    # deny
@@ -92,7 +95,7 @@ NESTED = re.compile(r"\$\(|\$\{|`")  # a command substitution runs whatever it h
 VAR = re.compile(r"\$\{?\w")
 SEPARATORS = set("();|&\n")  # `<`, `>` stay in the segment so a here-string is visible
 PUSH_PROGRAMS = {"git", "sh", "bash", "zsh", "eval", "exec", "env", "command", "xargs"}
-ALLOWED_PUSH = ["git", "push", "origin", "main"]
+ALLOWED_PUSH = "git push origin main"  # the whole command, compared raw
 ASK = [  # (subcommand, predicate over the tokens after it, reason)
     ("reset", lambda a: "--hard" in a, "git reset --hard discards work"),
     ("clean", lambda a: any(re.fullmatch(r"-[A-Za-z]*f[A-Za-z]*", t) or t == "--force" for t in a),
@@ -235,8 +238,8 @@ def main() -> int:
         return 0
     git_args = [seg[seg.index("git") + 1:] for seg in segs if "git" in seg]
     if any(pushes(seg) for seg in segs):
-        if segs != [ALLOWED_PUSH]:
-            decide("deny", f"git-guard: only the exact command `{' '.join(ALLOWED_PUSH)}` may push; "
+        if command.strip() != ALLOWED_PUSH:
+            decide("deny", f"git-guard: only the exact command `{ALLOWED_PUSH}` may push; "
                    "no force push, no wrapper shell, no other remote or ref, and `factory` is never pushed (AGENTS.md, Git and branches)")
         return 0
     for sub, hits, reason in ASK:
