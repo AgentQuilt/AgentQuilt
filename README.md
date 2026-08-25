@@ -1,43 +1,63 @@
 # AgentQuilt
 
-Every time you send a message, the model is a stranger. It has no memory of its own, and nothing it did yesterday is on record today. AgentQuilt is an open-source platform that fixes both for a company running agents on its own systems. Several people share one memory, curated by the company itself, in its own database. Every action an agent takes leaves a receipt, and every receipt says how to walk it back. Your knowledge stays with you, not with a vendor.
+AgentQuilt is an open-source platform for running AI agents for a small business.
 
-It is not a chatbot builder. It is not a hosted service. You run it.
+The planned agents will:
 
-The bet underneath: thick skills, thin code. The instructions your company writes carry its processes. The code stays small and stays put.
+- update websites
+- answer customers through Telegram, WhatsApp, Viber and web chat
+- share business knowledge stored in your own database
+- record the actions they take
+- support approval and rollback where possible
 
-## Where This Is Going
+AgentQuilt is designed to be self-hosted. You control where it runs, what information it stores and what agents are allowed to do.
 
-The build runs in the order people can see it.
+## Roadmap
 
-1. The architecture on paper. Twenty-seven design records and one structure document, published as the first spec release.
-2. Design before code. A design system made of reusable parts, then a mock-up of every screen, so anyone can open this repository and see what the finished thing is for.
-3. The backend behind the mock-ups. Memory, receipts and approvals, wired to those screens, in your own database.
-4. The first agents on it. A personal chat thread, messaging for a company chatbot, a knowledge hub, and client-facing support agents on Telegram.
-5. Self-hosting in an evening. One image, one compose file.
+Development is planned in these stages:
 
-Each step ships when it is finished and gets a dated entry in the changelog. No step is skipped to look further ahead.
+1. Publish the architecture and design records.
+2. Create the design system and interface mock-ups.
+3. Build the core backend, including memory, approvals, action history and rollback.
+4. Add the first agents: personal chat, business chat, knowledge management and Telegram support.
+5. Add WhatsApp, Viber and web chat to a shared inbox.
+6. Add a website management agent.
+7. Package the platform for straightforward self-hosting.
+8. Allow users to create and configure their own agents.
 
-## What Is in This Repository
+Each stage will be released when it is ready.
 
-The working setup for the coding agents that build AgentQuilt. It is published with the product so the method can be reviewed too.
+## Repository contents
 
-- `AGENTS.md`: the guide every agent reads first. What the product is, the working agreement, the review contract, the model routing.
-- `REVIEW.md`: the contract every change is judged against.
-- `.claude/`: the agents, rules, skills and hooks that do the building.
+The repository currently contains the development framework used to build and review the project:
 
-Product code arrives with step 3.
+- `AGENTS.md`: instructions for coding agents
+- `REVIEW.md`: review requirements for every change
+- `.claude/`: agent definitions, rules, skills and hooks
+- `docs/`: project documentation, starting with the provenance rule
 
-## Who Is Building This
+Product code will be added in a later development stage.
 
-I am Emiliyan. I trained as a management accountant and spent my working life as an SAP planning architect for finance teams. That work teaches one thing early: before a company trusts a system with a decision, it wants a record, an owner, and a way back. AgentQuilt is that lesson, built in public, one finished step at a time. I am moving into applied AI engineering with it. The commits are the evidence.
+## Development principles
 
-## Origins
+AgentQuilt is being designed around a few practical requirements:
 
-AgentQuilt's design draws on lessons from an internal agent platform the author built in prior professional work. No code, prompt, schema, data or configuration from that work is reused, and it is not named. The full rule is in `docs/provenance.md`.
+- business data stays under the operator's control
+- agent actions are recorded
+- sensitive actions can require approval
+- reversible actions include enough information to roll them back
+- shared knowledge has a clear source and can be corrected
 
-## Licence and Name
+The repository history records how these decisions and the resulting code change over time.
 
-Apache-2.0, see `LICENSE`. AgentQuilt™ is a trademark of the author; the name and any logo are not covered by the licence, see `TRADEMARK.md`. Contributions are accepted under the Developer Certificate of Origin, see `CONTRIBUTING.md`.
+## Author
 
-Many patches, each its own, stitched into one thing you can use.
+AgentQuilt is created and maintained by Emiliyan Tanev.
+
+## Licence and name
+
+The code is licensed under Apache-2.0. See `LICENSE`.
+
+AgentQuilt is a trademark of the author. The name and logo are not covered by the software licence. See `TRADEMARK.md`.
+
+Contributions are accepted under the Developer Certificate of Origin. See `CONTRIBUTING.md` and `docs/provenance.md`.

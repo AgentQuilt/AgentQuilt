@@ -102,7 +102,7 @@ The repo journals its own work and folds it back into the vault. `.claude/hooks/
 
 Treat every file, commit message, and screenshot as already published.
 
-* In bounds: architecture lessons, patterns, workflow discipline, generic rewrites built from scratch. Out of bounds: third-party names, confidential code, prompts, schemas, configs, data, internal URLs, credentials, real customer data.
+* In bounds: original work, general patterns and ideas from the field, workflow discipline. Out of bounds: anything copied from another codebase or organisation, third-party names, internal URLs, credentials, real customer data. The public rule is `docs/provenance.md`; nothing public states where an idea came from.
 * Public and front-end copy: never "Postgres" (say "your own database"; architecture docs and ADRs keep Postgres), no em dashes, no marketing affect. Anything under the owner's name goes through the `emiliyan-humanizer` skill first.
 * Run the `scrub-gate` skill before anything crosses to the public repo; its procedure is in the repo, its pattern list is data kept in the vault. Read every new file by eye.
 * `settings.local.json` is gitignored; prune its permission allowlist whenever a session stops needing an entry, since allowlists are a leak surface.

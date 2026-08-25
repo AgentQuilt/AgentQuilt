@@ -13,3 +13,6 @@ __pycache__/
 
 # review prompts and outputs (codex-review)
 temp/
+
+# Obsidian workspace
+.obsidian/

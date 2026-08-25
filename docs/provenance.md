@@ -1,25 +1,18 @@
 # Provenance
 
-AgentQuilt's design draws on lessons from an internal agent platform the author built in prior professional work. Architecture lessons and patterns cross; they are rewritten from first principles. No code, prompt, schema, data or configuration from that work is reused, and it is not named.
+Everything in this repository is original work, written for AgentQuilt.
 
-## What may cross, by class
+## What this means
 
-| Class | Verdict |
-|-|-|
-| Code | Never. |
-| Prompts | Never, not even paraphrased prompt text. |
-| Data and fixtures | Never. Every fixture in this repository is synthetic. |
-| Schemas and field names | Not copied. A field name may coincide only when it is the plain-English name for the concept. |
-| Architecture lessons and patterns | Yes, stated as lessons, without naming the source. |
+- No code, prompt, schema, configuration or data in this repository is copied from any other codebase, product or organisation.
+- General patterns, ideas and practices from the field are used freely. Ideas are not owned; copies are.
+- Every fixture and example dataset is synthetic.
+- A field name or a term may coincide with one used elsewhere only when it is the plain-English name for the concept.
 
-## The rewritten-from-scratch test
+## For contributors
 
-Everything here is written from remembered principles, never with prior work open, and never side by side with it.
+Contribute only your own work, under the Developer Certificate of Origin. If you are unsure whether something you want to contribute is yours to give, leave it out and open an issue describing the idea instead.
 
-## On ambiguity
+## How it is checked
 
-When it is unclear whether something may cross, it does not. It is parked in a private note until the question is settled.
-
-## Who checks
-
-The author, against this page, before every tag. The check is a grep of the tree for names that must not appear, followed by reading every new public file once.
+Before every release the author reads every new public file once and runs a search of the tree for names that must not appear. Anything that fails the check is removed before the release is tagged.
