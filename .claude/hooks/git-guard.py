@@ -65,11 +65,12 @@ def decide(decision: str, reason: str) -> None:
     }}))
 
 
-def fold_heredocs(command: str) -> str:
-    """Replace each heredoc body with one shell-quoted token on the redirection's line.
+def parse(command: str) -> list[list[str]]:
+    """Cut the command into segments at the shell operators; ValueError on an unbalanced quote.
 
-    The body starts after `<<TAG`, `<<'TAG'` or `<<"TAG"` and runs to the line equal to
-    TAG. Quoting it keeps its text scannable while its apostrophes stop breaking the parse.
+    Each heredoc body (after `<<TAG`, `<<'TAG'` or `<<"TAG"`, up to the line equal to TAG)
+    is first re-quoted into one token, so its apostrophes stop breaking the parse while its
+    text stays scannable.
     """
     kept: list[str] = []
     body: list[str] = []
@@ -86,12 +87,7 @@ def fold_heredocs(command: str) -> str:
         opener = HEREDOC.search(line)
         if opener:
             tag = opener.group(2)
-    return "\n".join(kept)
-
-
-def segments(command: str) -> list[list[str]]:
-    """Tokenize once and cut on the shell operators; raises ValueError on an unbalanced quote."""
-    lexer = shlex.shlex(command, posix=True, punctuation_chars="();<>|&\n")
+    lexer = shlex.shlex("\n".join(kept), posix=True, punctuation_chars="();<>|&\n")
     lexer.whitespace = " \t\r"
     lexer.whitespace_split = True
     cut: list[list[str]] = [[]]
@@ -129,7 +125,7 @@ def main() -> int:
         decide("deny", "git-guard: $IFS or backslash-newline in a command is obfuscation; denied")
         return 0
     try:
-        segs = segments(fold_heredocs(command))
+        segs = parse(command)
     except ValueError:
         decide("deny", "git-guard: unbalanced quote; cannot tokenize, denied (fails closed)")
         return 0
