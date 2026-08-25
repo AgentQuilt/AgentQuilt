@@ -3,12 +3,16 @@
 
 Deny tier: any `git push` unless the whole command is exactly `git push origin main`
 (no force push, no `factory`, no other remote or ref, no `-C`/`--no-pager`/`command`
-prefix, nothing else on the line). `$IFS`, a backslash-newline, an unbalanced quote
-or an unreadable payload deny outright (fails closed).
+prefix, nothing else on the line). A `push` token counts only where something could run
+it (`PUSH_PROGRAMS`, a `$var` program or a here-string) and never as the argument of
+`-m`/`--message`, so a commit message may say "push". `$IFS`, a backslash-newline, an
+unbalanced quote or an unreadable payload deny outright (fails closed). A heredoc body
+becomes one quoted token, so its apostrophes parse and its `push` is still seen.
 Ask tier: `reset --hard`, `clean -f`, `checkout .`, `restore .`.
 Allow + log: `git commit` (placeholder until the review gate exists; see TODO).
 
-Smoke test (run from the repo root; expected decision after each):
+Smoke test (run from the repo root; expected decision after each).
+Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' | python3 .claude/hooks/git-guard.py      # no output, exit 0 (allow)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push origin factory"}}' | python3 .claude/hooks/git-guard.py   # permissionDecision deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git push --force origin main"}}' | python3 .claude/hooks/git-guard.py  # deny
@@ -16,8 +20,19 @@ Smoke test (run from the repo root; expected decision after each):
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git$IFS push origin main"}}' | python3 .claude/hooks/git-guard.py    # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git reset --hard; git push origin main"}}' | python3 .claude/hooks/git-guard.py  # deny
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh -c \"git push origin factory\""}}' | python3 .claude/hooks/git-guard.py    # deny (wrapper shell)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"g=git; $g push origin factory"}}' | python3 .claude/hooks/git-guard.py    # deny ($var program)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"bash <<< \"git push origin factory\""}}' | python3 .claude/hooks/git-guard.py  # deny (here-string)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"sh <<'"'"'EOF'"'"'\ngit push origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (heredoc body is still scanned)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git reset --hard HEAD~1"}}' | python3 .claude/hooks/git-guard.py   # ask
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git clean -fd"}}' | python3 .claude/hooks/git-guard.py            # ask
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git checkout ."}}' | python3 .claude/hooks/git-guard.py           # ask
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git restore ."}}' | python3 .claude/hooks/git-guard.py            # ask
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m x"}}' | python3 .claude/hooks/git-guard.py           # exit 0, one line appended to .claude/.curate/git-guard.log
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"add push-guard\""}}' | python3 .claude/hooks/git-guard.py  # allow (-m argument is not scanned)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"grep -rn push .claude/hooks/"}}' | python3 .claude/hooks/git-guard.py  # allow (grep cannot push)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"grep -n \"the profile'"'"'s targets\" file"}}' | python3 .claude/hooks/git-guard.py  # allow (apostrophe inside a double-quoted string)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<'"'"'EOF'"'"'\nit'"'"'s fine\nEOF"}}' | python3 .claude/hooks/git-guard.py  # allow (apostrophe in a heredoc body)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git status"}}' | python3 .claude/hooks/git-guard.py                # allow
   printf 'not json' | python3 .claude/hooks/git-guard.py                                                                        # deny (fails closed)
 """
 import json
@@ -27,8 +42,11 @@ import shlex
 import sys
 from datetime import datetime, timezone
 
-SEGMENT = re.compile(r"\n|;|&&|\|\||\|")
 OBFUSCATED = re.compile(r"\$\{?IFS\}?|\\\n")
+HEREDOC = re.compile(r"(?<!<)<<(?!<)\s*(['\"]?)(\w+)\1")
+VAR = re.compile(r"\$\{?\w")
+SEPARATORS = set("();|&\n")  # `<`, `>` stay in the segment so a here-string is visible
+PUSH_PROGRAMS = {"git", "sh", "bash", "zsh", "eval", "exec", "env", "command", "xargs"}
 ALLOWED_PUSH = ["git", "push", "origin", "main"]
 ASK = [  # (subcommand, predicate over the tokens after it, reason)
     ("reset", lambda a: "--hard" in a, "git reset --hard discards work"),
@@ -47,6 +65,59 @@ def decide(decision: str, reason: str) -> None:
     }}))
 
 
+def fold_heredocs(command: str) -> str:
+    """Replace each heredoc body with one shell-quoted token on the redirection's line.
+
+    The body starts after `<<TAG`, `<<'TAG'` or `<<"TAG"` and runs to the line equal to
+    TAG. Quoting it keeps its text scannable while its apostrophes stop breaking the parse.
+    """
+    kept: list[str] = []
+    body: list[str] = []
+    tag = None
+    for line in command.split("\n"):
+        if tag is not None:
+            if line == tag:
+                kept[-1] += " " + shlex.quote("\n".join(body))
+                tag, body = None, []
+            else:
+                body.append(line)
+            continue
+        kept.append(line)
+        opener = HEREDOC.search(line)
+        if opener:
+            tag = opener.group(2)
+    return "\n".join(kept)
+
+
+def segments(command: str) -> list[list[str]]:
+    """Tokenize once and cut on the shell operators; raises ValueError on an unbalanced quote."""
+    lexer = shlex.shlex(command, posix=True, punctuation_chars="();<>|&\n")
+    lexer.whitespace = " \t\r"
+    lexer.whitespace_split = True
+    cut: list[list[str]] = [[]]
+    for token in lexer:
+        if token and set(token) <= SEPARATORS:
+            cut.append([])
+        else:
+            cut[-1].append(token)
+    return [seg for seg in cut if seg]
+
+
+def pushes(seg: list[str]) -> bool:
+    """A `push` token in a segment that could run one, outside any `-m`/`--message` argument."""
+    if not (os.path.basename(seg[0]) in PUSH_PROGRAMS or VAR.search(seg[0]) or "<<<" in seg):
+        return False
+    skip = False
+    for token in seg:
+        if skip:
+            skip = False
+        elif token in ("-m", "--message"):
+            skip = True
+        elif "push" in token and not token.startswith("--message="):
+            return True
+    return False
+
+
 def main() -> int:
     try:
         payload = json.loads(sys.stdin.read())
@@ -58,14 +129,13 @@ def main() -> int:
         decide("deny", "git-guard: $IFS or backslash-newline in a command is obfuscation; denied")
         return 0
     try:
-        segments = [shlex.split(s) for s in SEGMENT.split(command)]
+        segs = segments(fold_heredocs(command))
     except ValueError:
         decide("deny", "git-guard: unbalanced quote; cannot tokenize, denied (fails closed)")
         return 0
-    git_args = [seg[seg.index("git") + 1:] for seg in segments if "git" in seg]
-    # `push` inside any token, not only after `git`: catches sh -c "git push ...", $g push, and here-strings.
-    if any("push" in token for seg in segments for token in seg):
-        if segments != [ALLOWED_PUSH]:
+    git_args = [seg[seg.index("git") + 1:] for seg in segs if "git" in seg]
+    if any(pushes(seg) for seg in segs):
+        if segs != [ALLOWED_PUSH]:
             decide("deny", f"git-guard: only the exact command `{' '.join(ALLOWED_PUSH)}` may push; "
                    "no force push, no wrapper shell, no other remote or ref, and `factory` is never pushed (AGENTS.md, Git and branches)")
         return 0
