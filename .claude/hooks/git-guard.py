@@ -13,7 +13,9 @@ outright (fails closed). A heredoc body becomes one quoted token, so its apostro
 parse and its `push` is still seen; a line may open several, and an opener inside quotes
 (`echo '<<EOF'`) or after a `#` comment (`echo ok # <<EOF`) is data and opens none. A
 heredoc whose tag this file cannot read, or whose terminator never arrives, denies
-rather than being guessed at.
+rather than being guessed at, and `push` anywhere in a body denies whatever program the
+body feeds: parsing then decides quote balance only, so a misread comment or tag can
+cost a false deny but can never hide a push.
 Ask tier: `reset --hard`, `clean -f`, `checkout .`, `restore .`.
 Allow + log: `git commit` (placeholder until the review gate exists; see TODO).
 
@@ -34,6 +36,9 @@ Run them all: sed -n 's/^  printf/printf/p' .claude/hooks/git-guard.py | bash
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo \"$(git push origin factory)\""}}' | python3 .claude/hooks/git-guard.py  # deny (command substitution)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"x=`git push origin factory`"}}' | python3 .claude/hooks/git-guard.py  # deny (backticks)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"git commit -m \"$(echo push)\""}}' | python3 .claude/hooks/git-guard.py  # deny (no message flag shields a substitution)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok;# <<EOF\ngit push origin factory\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (a comment may start right after a semicolon)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<'"'"'EOF'"'"'\nprint(\"push\")\nEOF"}}' | python3 .claude/hooks/git-guard.py  # deny (push in a body, whatever reads it)
+  printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<END-JSON\ngit push origin factory\nEND-JSON"}}' | python3 .claude/hooks/git-guard.py  # deny (same, unquoted tag)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"echo ok # <<EOF\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a comment hides no opener, and its newline survives)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"python3 - <<END-JSON\nit'"'"'s\nEND-JSON\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (a hyphen is part of the tag)
   printf '%s' '{"tool_name":"Bash","tool_input":{"command":"cat <<'"'"'A'"'"' <<'"'"'B'"'"'\nit'"'"'s one\nA\nit'"'"'s two\nB\ngit push origin factory"}}' | python3 .claude/hooks/git-guard.py  # deny (after two bodies opened on one line)
@@ -76,6 +81,7 @@ HEREDOC_OPEN = re.compile(r"(?<!<)<<(?!<)")
 HEREDOC = re.compile(r"""(?<!<)<<(?!<)(-?)[ \t]*(?:'([^']*)'|"([^"]*)"|([^\s|&;<>()]+))""")
 QUOTE_DENIED = "git-guard: unbalanced quote; cannot tokenize, denied (fails closed)"
 HEREDOC_DENIED = "git-guard: unrecognised or unterminated heredoc; denied (fails closed)"
+BODY_DENIED = "git-guard: `push` inside a heredoc body; denied (fails closed)"
 MESSAGE = re.compile(r"-[a-zA-Z]*m")  # a short-option cluster ending in m
 NESTED = re.compile(r"\$\(|\$\{|`")  # a command substitution runs whatever it holds
 VAR = re.compile(r"\$\{?\w")
@@ -103,8 +109,9 @@ def scan_line(line: str, quote: str) -> tuple[str, list[tuple[str, bool]], str]:
     """The line's code, the heredocs it opens as (tag, strips-tabs), and the quote left open.
 
     `quote` carries an open quote across lines. A `<<` or `#` inside quotes is data; outside
-    them a `#` starting a word comments out the rest of the line, so neither `echo '<<EOF'`
-    nor `echo ok # <<EOF` opens a body and the line after either stays a command to read.
+    them a `#` after whitespace, an operator or at column zero comments out the rest of the
+    line, so neither `echo '<<EOF'` nor `echo ok;# <<EOF` opens a body and the line after
+    either stays a command to read.
     An opener whose tag does not parse raises: the guard refuses rather than guessing.
     """
     tags: list[tuple[str, bool]] = []
@@ -120,7 +127,7 @@ def scan_line(line: str, quote: str) -> tuple[str, list[tuple[str, bool]], str]:
             index += 1
         elif char in "'\"":
             quote = char
-        elif char == "#" and (index == 0 or line[index - 1] in " \t"):
+        elif char == "#" and (index == 0 or line[index - 1] in " \t;|&()"):
             return line[:index], tags, quote
         elif HEREDOC_OPEN.match(line, index):
             opener = HEREDOC.match(line, index)
@@ -149,7 +156,10 @@ def parse(command: str) -> list[list[str]]:
         if pending:
             tag, strips_tabs = pending[0]
             if (line.lstrip("\t") if strips_tabs else line) == tag:
-                kept[-1] += " " + shlex.quote("\n".join(body))
+                text = "\n".join(body)
+                if "push" in text:
+                    raise ValueError(BODY_DENIED)
+                kept[-1] += " " + shlex.quote(text)
                 pending.pop(0)
                 body = []
             else:
