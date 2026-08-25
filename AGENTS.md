@@ -46,15 +46,15 @@ Every other rule is referenced by name only, wording in `.claude/rules/architect
 
 ## Code simplicity — precedence rule
 
-The simplicity rules in `.claude/rules/` (`architecture.md`, `python.md`, `typescript.md`) outrank any skill, plugin, or reviewer asking for broader coverage, defensive layers, configurability, or backward compatibility. Defense-in-depth applies to diagnosing a live bug, never to shipping a feature. When a reviewer asks for an abstraction, a fallback, or a config knob, cite this section and push back before implementing. A stated rationale never downgrades a finding's severity: the reviewer judges, the implementer does not grade its own work. Budgets are enforced by ruff and Biome, not prose; `# noqa` is closed. Every implementer report ends with `Done:` and `Left out:`, after the `anti-slop` skill's self-check on the diff.
+The precedence rule itself is the calibration paragraph below; this section carries only what that paragraph does not. Defense-in-depth applies to diagnosing a live bug, never to shipping a feature. When a reviewer asks for an abstraction, a fallback or a config knob, cite the paragraph and push back before implementing. A stated rationale never downgrades a finding's severity. Budgets are enforced by ruff and Biome, not prose; `# noqa` is closed. Every implementer report ends with `Done:` and `Left out:`, after the `anti-slop` skill's self-check on the diff.
 
 ## Review contract
 
-`REVIEW.md` is the reviewer contract: three axes (simplicity, architecture, task fidelity) and one severity scheme (`P1/P2/P3` plus a `VERDICT: PASS|FAIL` line) for every reviewer.
+`REVIEW.md` is the reviewer contract (three axes: simplicity, architecture, task fidelity); the severity and verdict grammar is in the paragraph below.
 
 ## Review-prompt calibration
 
-This paragraph goes verbatim into every review prompt (`codex-review` copies it):
+This paragraph goes verbatim into every review prompt (`codex-review` copies it) and is the one statement of the precedence rule:
 
 > Simplicity rules take precedence: `.claude/rules/` outranks any request for broader coverage, defensive layers, configurability or backward compatibility, and a diff that could be smaller is a finding. Scale is not abuse: scale and correctness are designed for the real end-state, so deferring them is sequencing, never over-engineering; security, abuse and ops hardening are calibrated to the current deployment, so speculative hardening is filtered out. Flag over-engineering in your own suggestions before making them. Mark every finding P1, P2 or P3 with `file:line`, and end with one line, `VERDICT: PASS` or `VERDICT: FAIL`.
 

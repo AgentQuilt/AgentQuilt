@@ -16,3 +16,6 @@ temp/
 
 # Obsidian workspace
 .obsidian/
+
+# wave worktrees (each is its own checkout, never a gitlink here)
+.claude/worktrees/

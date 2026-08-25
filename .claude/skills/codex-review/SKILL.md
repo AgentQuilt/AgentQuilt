@@ -22,7 +22,7 @@ In the script; every doubt is FAIL. Only the tag grammar in the template counts.
 
 ## Stop rule
 
-Stop at PASS, or at no P1 with the remaining P2s accepted and written down. At round 4 say the cost aloud before continuing. A degenerate round (cosmetic findings only, still FAIL) is discarded and re-run with a fresh prompt. An expanding frontier (consecutive FAILs each naming a new actor or file) means the design shape is wrong: back to the plan, not another fold.
+Stop at PASS, or at no P1 with the remaining P2s accepted and written down. Round 4 is the cap: state the cost and stop; a fifth round runs only on the owner's word, given after the cost is stated. A degenerate round (cosmetic findings only, still FAIL) is discarded and re-run with a fresh prompt. An expanding frontier (consecutive FAILs each naming a new actor, a new file, or a new case in the same function) means the design shape is wrong: back to the plan, not another fold.
 
 ## Error taxonomy
 
