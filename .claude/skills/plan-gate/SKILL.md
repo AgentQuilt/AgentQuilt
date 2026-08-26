@@ -22,7 +22,7 @@ Runs on the plan document itself, before `codex-review` in plan mode. Each step 
 
 ## Output
 
-The plan file carries each step's text. The gate report to the owner is five lines: premises confirmed N/N; approach chosen and beaten; new parts justified N/N; criteria N; score and dispatches.
+The plan file carries each step's text. The gate report to the owner is five lines: premises confirmed N/N; approach chosen and beaten; new parts justified N/N; criteria N; score and dispatches. The report is a stop: implementation dispatches on the owner's go, never on the Codex verdict alone (AGENTS.md, canonical loop).
 
 ## Limits
 
