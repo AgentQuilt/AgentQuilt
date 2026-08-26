@@ -91,7 +91,7 @@ fi
 
 CURATE_CMD=(
   "$CLAUDE_BIN"
-  --print "/self-curate (triggered by: ${REASON}). Memory lane only: edit nothing under .claude/skills/, .claude/agents/, .claude/rules/, .claude/hooks/ or .claude/settings.json, nor AGENTS.md, REVIEW.md or CLAUDE.md (.claude/.curate/ is yours to rotate and stamp), and commit nothing in this repo. Hook-spawned lane: vault writes are appends to 90-meta/curate-inbox.md (one entry per item, target zone named) and 90-meta/suggestions.md (factory changes) only; no direct zone writes."
+  --print "/self-curate (triggered by: ${REASON}). Memory lane only: edit nothing under .claude/skills/, .claude/agents/, .claude/rules/, .claude/hooks/ or .claude/settings.json, nor AGENTS.md, REVIEW.md or CLAUDE.md (.claude/.curate/ is yours to rotate and stamp), and commit nothing in this repo. Hook-spawned lane: append to the session log freely; anything for the decision log, open questions or cross-project memory is an appended entry in 90-meta/curate-inbox.md (target zone named), factory changes go to 90-meta/suggestions.md; no other vault writes."
   --model "${AGENTQUILT_CURATE_MODEL:-claude-opus-5}"
   --permission-mode bypassPermissions
   --output-format text
