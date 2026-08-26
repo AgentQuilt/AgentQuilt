@@ -13,7 +13,3 @@ Everything in this repository is the author's original work, or open-source mate
 ## For contributors
 
 Contribute only work that is yours to give, under the Developer Certificate of Origin. If you are unsure whether something is yours to give, leave it out and open an issue describing the idea instead.
-
-## How it is checked
-
-Before every release the author reads every new public file once and runs a search of the tree for names that must not appear. Anything that fails the check is removed before the release is tagged.
