@@ -19,3 +19,6 @@ temp/
 
 # wave worktrees (each is its own checkout, never a gitlink here)
 .claude/worktrees/
+
+# Lavish review artifacts and session state (local review surface, never committed)
+.lavish/
