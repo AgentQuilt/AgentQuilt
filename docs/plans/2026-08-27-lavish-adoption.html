@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plan: adopt Lavish as the plan surface</title>
+<style>
+  /* ------------------------------------------------------------------
+     Design tokens. Values verbatim from the vault design brief §4.
+     Raw values live only here; everything below references a token.
+     ------------------------------------------------------------------ */
+  :root {
+    --field:      #FBF8F3;
+    --card:       #FFFFFF;
+    --ink:        #221C18;
+    --seam:       #E4DCD1;
+    --thread:     #9E1D32;
+    --approved:   #2E7A57;
+    --pending:    #A8730F;
+    --alarm:      #C64242;
+
+    --patch-madder: #9E1D32;
+    --patch-soot:   #26201B;
+    --patch-fir:    #2F6B4F;
+    --patch-gold:   #9C7514;
+    --patch-indigo: #3A557F;
+
+    --ink-quiet:  color-mix(in srgb, var(--ink) 62%, transparent);
+    --ink-faint:  color-mix(in srgb, var(--ink) 40%, transparent);
+    --wash:       color-mix(in srgb, var(--thread) 6%, transparent);
+
+    --measure: 68ch;
+    --step-0: 1rem;
+    --step-1: 1.15rem;
+    --step-2: 1.45rem;
+    --step-3: 2rem;
+    --step-4: 2.7rem;
+
+    /* The wordmark face is still a placeholder: the type choice belongs to
+       the design session's foundations step, and every candidate must cover
+       Cyrillic. This stack is neutral on purpose. */
+    --face: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --face-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    color-scheme: light dark;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --field:    #191412;
+      --card:     #221C18;
+      --ink:      #EFE6DB;
+      --seam:     #3B322B;
+      --thread:   #E15A68;
+      --approved: #55A87E;
+      --pending:  #D2A03C;
+      --alarm:    #E8756F;
+
+      --patch-soot:   #3A322B;
+      --patch-fir:    #4E9A76;
+      --patch-gold:   #C79B2E;
+      --patch-indigo: #6E8CBC;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, li, dd, td, th, h1, h2, h3, figcaption) { overflow-wrap: anywhere; }
+  :where(img, svg) { max-width: 100%; height: auto; }
+
+  html { background: var(--field); }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font-family: var(--face);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page { max-width: 66rem; margin: 0 auto; padding: 2.5rem 1.25rem 6rem; }
+
+  /* The running stitch: dash 6, gap 5, butt caps. Everything dashed in this
+     document descends from the stitch along the ring of the mark. */
+  .stitch {
+    border: 0;
+    height: 0;
+    border-top: 2px dashed var(--seam);
+    margin: 3rem 0;
+  }
+  .stitch-tight { margin: 1.5rem 0; }
+
+  /* ---------------- masthead ---------------- */
+  .masthead { display: flex; gap: 1.1rem; align-items: flex-start; flex-wrap: wrap; }
+  .mark { width: 56px; height: 56px; flex: none; }
+  .masthead h1 {
+    font-size: var(--step-4);
+    line-height: 1.1;
+    margin: 0 0 .35rem;
+    letter-spacing: -0.015em;
+    font-weight: 650;
+  }
+  .kicker {
+    font-size: .8rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 .5rem;
+  }
+  .standfirst {
+    font-size: var(--step-1);
+    color: var(--ink-quiet);
+    max-width: var(--measure);
+    margin: .75rem 0 0;
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1.1rem; }
+  .chip {
+    font-size: .78rem;
+    padding: .18rem .6rem;
+    border: 1px solid var(--seam);
+    border-radius: 999px;
+    color: var(--ink-quiet);
+    white-space: nowrap;
+  }
+  .chip-pending  { border-color: var(--pending); color: var(--pending); }
+  .chip-thread   { border-color: var(--thread); color: var(--thread); }
+  .chip-approved { border-color: var(--approved); color: var(--approved); }
+
+  /* ---------------- structure ---------------- */
+  h2 {
+    font-size: var(--step-3);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+    margin: 0 0 .2rem;
+    font-weight: 650;
+  }
+  h2 .num {
+    display: block;
+    font-size: .78rem;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--thread);
+    font-weight: 600;
+    margin-bottom: .35rem;
+  }
+  h3 { font-size: var(--step-2); margin: 2rem 0 .5rem; font-weight: 620; line-height: 1.25; }
+  h4 { font-size: var(--step-1); margin: 1.4rem 0 .35rem; font-weight: 620; }
+  p, li { max-width: var(--measure); }
+  section > p:first-of-type { margin-top: .9rem; }
+  a { color: var(--thread); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  code {
+    font-family: var(--face-mono);
+    font-size: .875em;
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+    padding: .1em .35em;
+    border-radius: 3px;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--seam);
+    border-radius: 4px;
+    padding: 1.25rem 1.4rem;
+  }
+  .grid { display: grid; gap: 1rem; }
+  @media (min-width: 46rem) { .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  .lede-rule {
+    border-left: 3px solid var(--thread);
+    padding-left: 1.1rem;
+    margin: 1.5rem 0;
+  }
+  .lede-rule p { font-size: var(--step-1); margin: 0; }
+
+  figure { margin: 1.75rem 0; }
+  figcaption {
+    font-size: .87rem;
+    color: var(--ink-quiet);
+    margin-top: .7rem;
+    max-width: var(--measure);
+  }
+  .figframe {
+    background: var(--card);
+    border: 1px solid var(--seam);
+    border-radius: 4px;
+    padding: 1.25rem;
+  }
+
+  /* ---------------- table ---------------- */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--seam); border-radius: 4px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; min-width: 40rem; }
+  th, td { text-align: left; padding: .7rem .9rem; vertical-align: top; font-size: .93rem; }
+  thead th {
+    font-size: .74rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    border-bottom: 2px dashed var(--seam);
+  }
+  tbody tr + tr td { border-top: 1px solid var(--seam); }
+  td:first-child { font-weight: 600; }
+  .sev {
+    display: inline-block;
+    font-size: .72rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    padding: .1rem .45rem;
+    border-radius: 3px;
+    border: 1px solid currentColor;
+  }
+  .sev-1 { color: var(--alarm); }
+  .sev-2 { color: var(--pending); }
+  .sev-3 { color: var(--ink-faint); }
+
+  /* ---------------- decision blocks ---------------- */
+  .decision {
+    background: var(--card);
+    border: 1px solid var(--seam);
+    border-top: 3px solid var(--thread);
+    border-radius: 4px;
+    padding: 1.35rem 1.4rem 1.2rem;
+    margin: 1.5rem 0;
+  }
+  .decision > h3 { margin-top: 0; }
+  .decision .why { color: var(--ink-quiet); font-size: .93rem; }
+  .opts { display: grid; gap: .6rem; margin: 1.1rem 0; }
+  .opt {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: .75rem;
+    align-items: start;
+    border: 1px solid var(--seam);
+    border-radius: 4px;
+    padding: .8rem .95rem;
+    cursor: pointer;
+  }
+  .opt:hover { border-color: var(--thread); }
+  .opt:has(input:checked) {
+    border-color: var(--thread);
+    background: var(--wash);
+  }
+  .opt input { margin-top: .28rem; accent-color: var(--thread); width: 1rem; height: 1rem; }
+  .opt .name { font-weight: 620; display: block; }
+  .opt .note { color: var(--ink-quiet); font-size: .89rem; display: block; margin-top: .15rem; }
+  .rec {
+    font-size: .7rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--thread);
+    border: 1px solid var(--thread);
+    border-radius: 999px;
+    padding: .05rem .45rem;
+    margin-left: .45rem;
+    white-space: nowrap;
+    vertical-align: 1px;
+  }
+  .queue {
+    font: inherit;
+    font-weight: 620;
+    font-size: .92rem;
+    color: var(--card);
+    background: var(--thread);
+    border: 1px solid var(--thread);
+    border-radius: 4px;
+    padding: .5rem 1.1rem;
+    cursor: pointer;
+  }
+  .queue:hover { background: color-mix(in srgb, var(--thread) 85%, var(--ink)); }
+  .queue:disabled { opacity: .45; cursor: not-allowed; }
+  .queued-note { font-size: .87rem; color: var(--approved); margin-left: .75rem; }
+
+  /* A settled decision: the choice is kept on the page, not deleted, so the
+     shape of what was rejected stays readable. */
+  .settled-mark {
+    display: inline-block;
+    font-size: .7rem;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--approved);
+    border: 1px solid var(--approved);
+    border-radius: 999px;
+    padding: .05rem .5rem;
+    margin-left: .5rem;
+    vertical-align: 2px;
+  }
+  .opt input:disabled { cursor: default; }
+  .opt:has(input:disabled) { cursor: default; }
+  .opt:has(input:disabled):hover { border-color: var(--seam); }
+  .opt:has(input:checked:disabled) {
+    border-color: var(--approved);
+    background: color-mix(in srgb, var(--approved) 8%, transparent);
+  }
+  .opt:has(input:checked:disabled):hover { border-color: var(--approved); }
+  .opt:has(input:disabled:not(:checked)) { opacity: .55; }
+  .outcome {
+    border-top: 2px dashed var(--seam);
+    margin-top: 1rem;
+    padding-top: .85rem;
+    font-size: .93rem;
+    color: var(--ink-quiet);
+  }
+  .outcome strong { color: var(--ink); }
+  .decision footer { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+
+  ul.plain { padding-left: 1.15rem; }
+  ul.plain li { margin: .35rem 0; }
+
+  .footnote { color: var(--ink-faint); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main class="page">
+
+<!-- =========================== MASTHEAD =========================== -->
+<header class="masthead">
+  <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="AgentQuilt Kanatitsa mark">
+    <title>Kanatitsa: the hollow madder diamond in an ink block, appliqued with a running stitch</title>
+    <rect x="10" y="10" width="44" height="44" fill="none" stroke="currentColor" stroke-width="3" />
+    <path d="M32 14 L50 32 L32 50 L14 32 Z M32 23 L23 32 L32 41 L41 32 Z" fill="var(--thread)" fill-rule="evenodd" />
+    <path d="M34.3 21.3 L37.5 24.5 M39.5 26.5 L42.7 29.7 M42.7 34.3 L39.5 37.5 M37.5 39.5 L34.3 42.7 M29.7 42.7 L26.5 39.5 M24.5 37.5 L21.3 34.3 M21.3 29.7 L24.5 26.5"
+          stroke="var(--field)" stroke-width="2.2" />
+  </svg>
+  <div style="flex:1 1 22rem">
+    <p class="kicker">Plan &middot; factory &middot; 2026-08-27</p>
+    <h1>Plans as a review surface</h1>
+    <p class="standfirst">
+      Whether to adopt Lavish as the surface where you read and mark up a plan before
+      you give the green light. This page was itself the trial: reading it, annotating it
+      and sending the annotations back was the thing being evaluated.
+    </p>
+    <div class="chips">
+      <span class="chip chip-approved">Settled 2026-08-27</span>
+      <span class="chip">Codex PASS, round 1, no findings</span>
+      <span class="chip">3 of 3 decisions answered</span>
+      <span class="chip chip-approved">Committed and published 2026-08-27</span>
+    </div>
+  </div>
+</header>
+
+<hr class="stitch">
+
+<!-- =========================== 1. THE ASK =========================== -->
+<section>
+  <h2><span class="num">01</span>What is being decided</h2>
+
+  <div class="lede-rule">
+    <p>
+      Plans are written as vault Markdown. You read them in a terminal or in Obsidian,
+      and your reaction comes back as prose in chat. The proposal is to add one step:
+      the plan is also rendered as a local HTML page you open in a browser, mark up
+      element by element, and send back as targeted feedback.
+    </p>
+  </div>
+
+  <p>
+    Nothing is removed. The canonical loop, the vault, <code>plan-gate</code> and
+    <code>codex-review</code> all stay exactly as they are. The only change is the
+    shape of the surface you read the plan on, and the shape of what comes back.
+  </p>
+
+  <h3>What we already have, and why it falls short</h3>
+  <div class="grid grid-2">
+    <div class="card">
+      <h4 style="margin-top:0">Today</h4>
+      <ul class="plain">
+        <li>Plan is Markdown in the vault's research or specs folder.</li>
+        <li>You read it in a terminal pager or Obsidian.</li>
+        <li>Feedback arrives as prose in Telegram or the terminal.</li>
+        <li>I reconstruct which paragraph you meant from your description.</li>
+        <li>Diagrams are ASCII, or absent.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="margin-top:0">With a review surface</h4>
+      <ul class="plain">
+        <li>Plan is also an HTML page beside the Markdown.</li>
+        <li>You read it in a browser, on the desk or on a phone.</li>
+        <li>You select the exact sentence and attach the comment to it.</li>
+        <li>Feedback arrives with a CSS locator, so the target is unambiguous.</li>
+        <li>Diagrams are drawn, and a decision can be a control rather than a paragraph.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p style="margin-top:1.25rem">
+    The 2026-08-26 decision on the loop picture is the evidence that this matters.
+    Four rounds of Codex review of that explainer caught thirteen local factual errors
+    and missed an invented band in the structure. You caught it by looking at the picture
+    once. Per-claim review is good at local errors and blind to structural ones. A surface
+    that makes the structure visible is aimed at exactly the class of error that review
+    does not catch.
+  </p>
+</section>
+
+<hr class="stitch">
+
+<!-- =========================== 2. HOW IT WORKS =========================== -->
+<section>
+  <h2><span class="num">02</span>How the tool works</h2>
+
+  <p>
+    Lavish is a local CLI and a local browser editor. There is no cloud service in the
+    core loop and no account. The file stays on disk; the browser talks to a local
+    server on port 4387.
+  </p>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 720 260" role="img" width="100%" aria-labelledby="loop-t loop-d">
+        <title id="loop-t">The Lavish review cycle</title>
+        <desc id="loop-d">
+          The agent writes an HTML file. The owner opens it in a browser, annotates elements
+          and queues feedback. The agent's poll returns that feedback. The agent revises the
+          same file and the browser live reloads. The cycle repeats until the owner ends it.
+        </desc>
+
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--thread)" />
+          </marker>
+        </defs>
+
+        <!-- lanes -->
+        <text x="120" y="26" text-anchor="middle" font-size="12" letter-spacing="1.6"
+              fill="var(--ink-faint)" style="text-transform:uppercase">Agent</text>
+        <text x="600" y="26" text-anchor="middle" font-size="12" letter-spacing="1.6"
+              fill="var(--ink-faint)" style="text-transform:uppercase">You</text>
+        <line x1="360" y1="14" x2="360" y2="246" stroke="var(--seam)" stroke-width="2"
+              stroke-dasharray="6 5" stroke-linecap="butt" />
+
+        <!-- the file, at the centre -->
+        <g id="node-file">
+          <title>One HTML file on disk. Session identity is the file path.</title>
+          <rect x="292" y="106" width="136" height="52" rx="3"
+                fill="var(--card)" stroke="var(--thread)" stroke-width="2" />
+          <text x="360" y="130" text-anchor="middle" font-size="14" font-weight="650" fill="var(--ink)">one file</text>
+          <text x="360" y="147" text-anchor="middle" font-size="11.5" fill="var(--ink-quiet)">plan.html, on disk</text>
+        </g>
+
+        <!-- agent writes -->
+        <g id="edge-write">
+          <title>The agent writes or revises the HTML artifact.</title>
+          <rect x="34" y="50" width="172" height="46" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+          <text x="120" y="70" text-anchor="middle" font-size="13" font-weight="620" fill="var(--ink)">write / revise</text>
+          <text x="120" y="86" text-anchor="middle" font-size="11" fill="var(--ink-quiet)">Fable authors the page</text>
+          <path d="M210 76 C 250 76, 262 108, 290 118" fill="none" stroke="var(--thread)" stroke-width="2" marker-end="url(#ar)" />
+        </g>
+
+        <!-- you read -->
+        <g id="edge-read">
+          <title>You open the file with lavish-axi and read it in a browser.</title>
+          <rect x="514" y="50" width="172" height="46" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+          <text x="600" y="70" text-anchor="middle" font-size="13" font-weight="620" fill="var(--ink)">read + annotate</text>
+          <text x="600" y="86" text-anchor="middle" font-size="11" fill="var(--ink-quiet)">select any element</text>
+          <path d="M430 118 C 458 108, 470 76, 512 76" fill="none" stroke="var(--thread)" stroke-width="2" marker-end="url(#ar)" />
+        </g>
+
+        <!-- you send -->
+        <g id="edge-send">
+          <title>You press Send to Agent. Queued feedback is released.</title>
+          <rect x="514" y="168" width="172" height="46" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+          <text x="600" y="188" text-anchor="middle" font-size="13" font-weight="620" fill="var(--ink)">send to agent</text>
+          <text x="600" y="204" text-anchor="middle" font-size="11" fill="var(--ink-quiet)">one queue, one press</text>
+          <path d="M512 191 C 470 191, 458 158, 430 148" fill="none" stroke="var(--thread)" stroke-width="2" marker-end="url(#ar)" />
+        </g>
+
+        <!-- agent polls -->
+        <g id="edge-poll">
+          <title>lavish-axi poll long-polls and returns your feedback with its targets.</title>
+          <rect x="34" y="168" width="172" height="46" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+          <text x="120" y="188" text-anchor="middle" font-size="13" font-weight="620" fill="var(--ink)">poll returns it</text>
+          <text x="120" y="204" text-anchor="middle" font-size="11" fill="var(--ink-quiet)">with element targets</text>
+          <path d="M290 148 C 262 158, 250 191, 208 191" fill="none" stroke="var(--thread)" stroke-width="2" marker-end="url(#ar)" />
+        </g>
+
+        <text x="360" y="238" text-anchor="middle" font-size="11.5" fill="var(--ink-faint)">
+          live reload keeps your scroll position and your open comments
+        </text>
+      </svg>
+    </div>
+    <figcaption>
+      The cycle is turn-taking, not simultaneous editing. You are never typing into the
+      page while I am rewriting it. Your annotations survive my revision because the
+      session is keyed by file path and the browser reloads in place.
+    </figcaption>
+  </figure>
+
+  <h3>Where it sits in our loop</h3>
+  <p>
+    It attaches at one point only: the owner gate settled on 2026-08-26. It does not
+    become a step, and it does not touch review or implementation.
+  </p>
+
+  <figure>
+    <div class="figframe">
+      <svg viewBox="0 0 720 150" role="img" width="100%" aria-labelledby="canon-t canon-d">
+        <title id="canon-t">The canonical loop, with the review surface attached at the owner gate</title>
+        <desc id="canon-d">
+          Six stations in a row: Opus investigates, Fable plans, Codex reviews the plan,
+          the owner says go, Opus implements, Codex reviews the diff, Fable folds and merges.
+          Lavish attaches below the owner gate only.
+        </desc>
+
+        <g font-size="11.5" fill="var(--ink)">
+          <!-- stations -->
+          <g id="st-1"><title>Opus sub-agents investigate and scope.</title>
+            <rect x="8" y="40" width="98" height="38" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+            <text x="57" y="58" text-anchor="middle" font-weight="620">investigate</text>
+            <text x="57" y="71" text-anchor="middle" font-size="10" fill="var(--ink-quiet)">Opus</text></g>
+
+          <g id="st-2"><title>Fable writes the plan.</title>
+            <rect x="118" y="40" width="86" height="38" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+            <text x="161" y="58" text-anchor="middle" font-weight="620">plan</text>
+            <text x="161" y="71" text-anchor="middle" font-size="10" fill="var(--ink-quiet)">Fable</text></g>
+
+          <g id="st-3"><title>Codex peer-reviews the plan.</title>
+            <rect x="216" y="40" width="96" height="38" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+            <text x="264" y="58" text-anchor="middle" font-weight="620">review plan</text>
+            <text x="264" y="71" text-anchor="middle" font-size="10" fill="var(--ink-quiet)">Codex</text></g>
+
+          <g id="st-gate"><title>The owner reads the plan and says go. A standing stop.</title>
+            <rect x="324" y="36" width="96" height="46" rx="3" fill="var(--wash)" stroke="var(--thread)" stroke-width="2.5" />
+            <text x="372" y="56" text-anchor="middle" font-weight="700" fill="var(--thread)">you say go</text>
+            <text x="372" y="70" text-anchor="middle" font-size="10" fill="var(--thread)">standing stop</text></g>
+
+          <g id="st-4"><title>Opus implements in a worktree.</title>
+            <rect x="432" y="40" width="92" height="38" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+            <text x="478" y="58" text-anchor="middle" font-weight="620">implement</text>
+            <text x="478" y="71" text-anchor="middle" font-size="10" fill="var(--ink-quiet)">Opus</text></g>
+
+          <g id="st-5"><title>Codex reviews the diff.</title>
+            <rect x="536" y="40" width="88" height="38" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+            <text x="580" y="58" text-anchor="middle" font-weight="620">review diff</text>
+            <text x="580" y="71" text-anchor="middle" font-size="10" fill="var(--ink-quiet)">Codex</text></g>
+
+          <g id="st-6"><title>Fable folds findings, re-gates and merges.</title>
+            <rect x="636" y="40" width="76" height="38" rx="3" fill="var(--card)" stroke="var(--seam)" stroke-width="1.5" />
+            <text x="674" y="58" text-anchor="middle" font-weight="620">fold</text>
+            <text x="674" y="71" text-anchor="middle" font-size="10" fill="var(--ink-quiet)">Fable</text></g>
+        </g>
+
+        <g stroke="var(--ink-faint)" stroke-width="1.5" fill="none">
+          <path d="M106 59 L116 59" /><path d="M204 59 L214 59" /><path d="M312 59 L322 59" />
+          <path d="M420 59 L430 59" /><path d="M524 59 L534 59" /><path d="M624 59 L634 59" />
+        </g>
+
+        <!-- the attachment -->
+        <path d="M372 84 L372 106" stroke="var(--thread)" stroke-width="2" stroke-dasharray="6 5" stroke-linecap="butt" />
+        <g id="st-lavish"><title>Lavish renders the plan for the owner gate and returns targeted feedback.</title>
+          <rect x="276" y="106" width="192" height="34" rx="3" fill="var(--card)" stroke="var(--thread)" stroke-width="1.5" stroke-dasharray="6 5" />
+          <text x="372" y="127" text-anchor="middle" font-size="11.5" font-weight="620" fill="var(--thread)">the review surface, here only</text></g>
+      </svg>
+    </div>
+    <figcaption>
+      Stations and their owners are as stated in <code>AGENTS.md</code>. The three
+      conditional agents (<code>verifier</code>, <code>security-reviewer</code>,
+      <code>browser-qa</code>) are not standing steps and are deliberately not drawn.
+    </figcaption>
+  </figure>
+</section>
+
+<hr class="stitch">
+
+<!-- =========================== 3. THE OBJECTION =========================== -->
+<section>
+  <h2><span class="num">03</span>The objection worth taking seriously</h2>
+
+  <p>
+    A plan that exists as Markdown in the vault <em>and</em> as HTML in the repo is two
+    copies of one thing. That is the failure the deletion test is written to catch. If
+    both are kept current by hand they drift, and the drift is silent, because each one
+    looks correct on its own.
+  </p>
+
+  <h4>Three ways out, in order of how much I believe them</h4>
+  <ul class="plain">
+    <li>
+      <strong>The HTML is the plan, and the vault keeps the decision, not the document.</strong>
+      The vault already works this way for decisions: the decision log carries what was
+      settled and why, never the working document. A plan is a working document. It can
+      live in the repo, be reviewed, and leave behind a decision-log entry when it is
+      settled. Nothing is duplicated because the Markdown plan stops existing.
+    </li>
+    <li>
+      <strong>The HTML is generated from the Markdown and never hand-edited.</strong>
+      Honest, but it means writing and maintaining a converter, and the interesting part
+      of this surface is exactly what a converter cannot produce: drawn diagrams and
+      decision controls.
+    </li>
+    <li>
+      <strong>Accept two copies and keep them in sync by discipline.</strong>
+      This is the one that fails. It is worth naming so it is not chosen by accident.
+    </li>
+  </ul>
+
+  <p>
+    My recommendation is the first, and decision 3 below is where you settle it.
+  </p>
+</section>
+
+<hr class="stitch">
+
+<!-- =========================== 4. COSTS =========================== -->
+<section>
+  <h2><span class="num">04</span>What adoption costs</h2>
+  <p>Every one of these is verified against the tool or the repo, not inferred from its README.</p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th style="width:9rem">Cost</th><th style="width:4.5rem">Weight</th><th>What it is, and what it would take to hold it</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Publish surface</td>
+          <td><span class="sev sev-1">P1</span></td>
+          <td>
+            <code>lavish-axi share</code> publishes the artifact to <code>ht-ml.app</code>,
+            a third-party host, and shares are <strong>public by default</strong>. Our plans
+            quote the vault before any scrub. The rule has to be that <code>share</code> is
+            never run on anything derived from the vault, and that <code>export</code>
+            (a local self-contained file) is the only way a plan leaves the machine.
+          </td>
+        </tr>
+        <tr>
+          <td>Leak into the public repo</td>
+          <td><span class="sev sev-2">P2</span></td>
+          <td>
+            Artifacts default to <code>.lavish/</code> in the working directory, which is
+            this public repo. Already handled: <code>.lavish/</code> was added to
+            <code>.gitignore</code> before this file was written. It stays a standing item
+            for <code>scrub-gate</code> regardless.
+          </td>
+        </tr>
+        <tr>
+          <td>Two sources of truth</td>
+          <td><span class="sev sev-2">P2</span></td>
+          <td>
+            Section 03. Not a tool problem, a filing problem, and it is decision 3.
+          </td>
+        </tr>
+        <tr>
+          <td>A Node dependency</td>
+          <td><span class="sev sev-3">P3</span></td>
+          <td>
+            The stack is Python and uv. This adds Node 22 and an npm package to the
+            review loop. It is a workflow tool and never ships with the product, so it
+            does not touch the stack decision, but it is one more thing that can break
+            on a new machine.
+          </td>
+        </tr>
+        <tr>
+          <td>Tool maturity</td>
+          <td><span class="sev sev-3">P3</span></td>
+          <td>
+            MIT, created 2026-05-11, 3,142 stars, 277 forks, 44 open issues, last pushed
+            2026-08-25. Real and actively worked on, and three months old. The exposure is
+            bounded: if it disappears, the HTML files still open in a browser.
+          </td>
+        </tr>
+        <tr>
+          <td>Polling discipline</td>
+          <td><span class="sev sev-3">P3</span></td>
+          <td>
+            The tool requires that <code>poll</code> runs in the foreground, or under a
+            background facility that is guaranteed to wake the same agent. Claude Code's
+            tracked background job is such a facility. Bare <code>&amp;</code> or
+            <code>nohup</code> is not, and must not be used.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hr class="stitch">
+
+<!-- =========================== 5. DECISIONS =========================== -->
+<section>
+  <h2><span class="num">05</span>Three decisions, all settled</h2>
+  <p>
+    Answered on 2026-08-27. The rejected options are kept on the page rather than
+    deleted, so what was considered and turned down stays readable and does not get
+    re-proposed later.
+  </p>
+
+  <!-- D1 -->
+  <div class="decision">
+    <h3>Decision 1 &middot; Adopt it, or trial it further<span class="settled-mark">settled</span></h3>
+    <p class="why">
+      This page is one round of evidence. The question is whether that is enough to
+      settle it, or whether it should carry a few more plans before it becomes doctrine.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt">
+          <input type="radio" name="d1" value="adopt-now" checked disabled>
+          <span>
+            <span class="name">Adopt now<span class="rec">recommended</span></span>
+            <span class="note">Record it in the decision log today, add it to AGENTS.md as the plan surface at the owner gate, and stop asking. Reversible at any time: the plans stay readable HTML.</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="d1" value="trial-three" disabled>
+          <span>
+            <span class="name">Trial across the next three plans</span>
+            <span class="note">Use it, decide afterwards. Costs nothing except that the decision stays open, which the working agreement says is a state a question may sit in as long as it is filed.</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="d1" value="drop" disabled>
+          <span>
+            <span class="name">Drop it</span>
+            <span class="note">Markdown plans keep working. I revert the gitignore line and nothing else changed.</span>
+          </span>
+        </label>
+      </div>
+      <div class="outcome">
+        <strong>Answered: Adopt now.</strong> Recorded in the vault decision log the same day. <code>AGENTS.md</code> line 78 now names this page as the plan surface at the owner gate. Reversible at any time, since these pages open in any browser without the tool.
+      </div>
+    </div>
+  </div>
+
+  <!-- D2 -->
+  <div class="decision">
+    <h3>Decision 2 &middot; The rule for <code>share</code></h3>
+    <p class="why">
+      The P1 in the table. <code>ht-ml.app</code> is a third-party host and its shares
+      are public unless a password is passed.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt">
+          <input type="radio" name="d2" value="never" checked disabled>
+          <span>
+            <span class="name">Never, and write it down<span class="rec">recommended</span></span>
+            <span class="note">A standing line in the provenance boundary: no artifact derived from the vault is ever published to a third-party host. <code>export</code> stays available for a local file you can send yourself.</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="d2" value="scrubbed-only" disabled>
+          <span>
+            <span class="name">Only after scrub-gate passes</span>
+            <span class="note">Treats a share like a crossing to the public repo. Correct in principle, and it puts a manual gate in front of a one-line command, which is where mistakes come from.</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="d2" value="judgment" disabled>
+          <span>
+            <span class="name">Leave it to judgment</span>
+            <span class="note">No written rule. Named so it is a choice rather than an omission.</span>
+          </span>
+        </label>
+      </div>
+      <div class="outcome">
+        <strong>Answered: Never, and write it down.</strong> Now a line in the <code>AGENTS.md</code> provenance boundary: no artifact derived from the vault is ever published to a third-party host. <code>lavish-axi share</code> is never run; <code>export</code> writes a self-contained local file and is the only way a plan leaves the machine.
+      </div>
+    </div>
+  </div>
+
+  <!-- D3 -->
+  <div class="decision">
+    <h3>Decision 3 &middot; Where a plan lives, and what the vault keeps</h3>
+    <p class="why">
+      The deletion test question from section 03. This is the one that actually shapes
+      the filing, and it is the one I would most like you to push back on.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt">
+          <input type="radio" name="d3" value="html-is-the-plan" checked disabled>
+          <span>
+            <span class="name">The HTML is the plan; the vault keeps the decision<span class="rec">recommended</span></span>
+            <span class="note">Plan lives in the repo under <code>.lavish/</code>, gitignored. When it settles, a decision-log entry records what was settled and why, as it does today. No Markdown twin, so nothing can drift.</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="d3" value="vault-plans" disabled>
+          <span>
+            <span class="name">Plans move into the vault as HTML</span>
+            <span class="note">A new plans folder beside the specs, holding HTML instead of Markdown. Keeps plans with the specs and inside the backed-up vault, at the cost of HTML in an Obsidian vault, where it does not render or link.</span>
+          </span>
+        </label>
+        <label class="opt">
+          <input type="radio" name="d3" value="markdown-primary" disabled>
+          <span>
+            <span class="name">Markdown stays primary, HTML is a view</span>
+            <span class="note">The vault Markdown remains the plan of record and the HTML is a throwaway rendering of it. Safest to reverse. This is the option that accepts two copies, so say so deliberately if you take it.</span>
+          </span>
+        </label>
+      </div>
+      <div class="outcome">
+        <strong>Answered: The HTML is the plan; the vault keeps the decision.</strong> The Markdown twin is not created, so nothing can drift. This page is the plan of record for this decision, and the vault entry is what it settled. One consequence worth naming: <code>.lavish/</code> is gitignored and sits outside the vault, so plans are not backed up with it.
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="stitch">
+
+<!-- =========================== 6. NEXT =========================== -->
+<section>
+  <h2><span class="num">06</span>What landed</h2>
+
+  <p>
+    The trial ran on 2026-08-27: one round, end to end. You annotated an element and
+    attached a screenshot, <code>poll</code> returned both with a CSS selector and the
+    image as a file on disk, and I replied inside the editor before you closed the
+    session. The three decisions were answered afterwards.
+  </p>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th style="width:14rem">Where</th><th>What changed</th><th style="width:8rem">State</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>AGENTS.md</code> line 78</td>
+          <td>The canonical loop now names this page as the plan surface at the owner gate, states that the page is the plan, and carries the poll constraint.</td>
+          <td>Committed</td>
+        </tr>
+        <tr>
+          <td><code>AGENTS.md</code> boundary</td>
+          <td>No artifact derived from the vault is ever published to a third-party host. <code>share</code> is never run, <code>export</code> is the only way out.</td>
+          <td>Committed</td>
+        </tr>
+        <tr>
+          <td><code>.gitignore</code></td>
+          <td><code>.lavish/</code> ignored. Added before this file was written, since artifacts default into the working directory and this repo is public.</td>
+          <td>Committed</td>
+        </tr>
+        <tr>
+          <td>Vault decision log</td>
+          <td>Full entry dated 2026-08-27, including both rejected filing options so they are not re-proposed.</td>
+          <td>Written</td>
+        </tr>
+        <tr>
+          <td><code>codex-review</code></td>
+          <td>Round 1 on the diff: <code>NO FINDINGS</code>, <code>VERDICT: PASS</code>. A thin pass rather than a searching one, and recorded as such.</td>
+          <td>Passed</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Left open, on purpose</h3>
+  <ul class="plain">
+    <li>
+      <strong>Committed and published, later the same day.</strong> The fold was committed
+      on the working branch once asked, and a second decision that evening sends every
+      approved plan to <code>docs/plans/</code> in the public repo through
+      <code>export</code> and <code>scrub-gate</code>. This page crossed on 2026-08-27;
+      a working plan still never leaves <code>.lavish/</code>.
+    </li>
+    <li>
+      <strong>A working plan is not backed up until it settles.</strong> <code>.lavish/</code>
+      is gitignored and sits outside the vault, so between first draft and approval a plan
+      lives on one disk. Publication closes the gap for settled plans only; where
+      <code>.lavish/</code> should live is still worth settling.
+    </li>
+    <li>
+      <strong>The global <code>~/.claude/CLAUDE.md</code> is still divergent.</strong> It
+      carries the canonical loop without the owner gate, flagged on 2026-08-26, and now
+      without the plan surface either.
+    </li>
+    <li>
+      <strong>No skill was created.</strong> The roster freeze needs a hard invariant or
+      the same failure twice, and neither holds. If dispatching this by hand each time
+      becomes friction, that is the second observation, and the freeze allows it then.
+    </li>
+  </ul>
+
+  <hr class="stitch stitch-tight">
+  <p class="footnote">
+    Design source: AgentQuilt's own settled design system, from the vault design
+    brief section 4, with the Kanatitsa mark from section 8. Tokens are used verbatim,
+    the dashed rules are the house running stitch at dash 6 gap 5 with butt caps, and the
+    single madder accent is the only accent. The Lavish DaisyUI fallback was not used,
+    because the project it is about already has a design system. The type face is the one
+    thing left neutral here: choosing it belongs to the design session's foundations step,
+    and every candidate has to cover Cyrillic first.
+  </p>
+</section>
+
+</main>
+
+</body>
+</html>
