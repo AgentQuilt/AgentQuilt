@@ -26,10 +26,9 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.kernel.store.models import Base
+from app.kernel.store.models import Base, Json
 
 NOW = text("now()")
-Json = dict[str, object]
 
 
 def _created_at() -> Mapped[datetime]:

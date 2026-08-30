@@ -65,7 +65,7 @@ async def test_scoped_write_lands_in_own_org_only(
 def _drift(connection: Connection) -> list[object]:
     def include_name(name: str | None, type_: str, parents: dict[str, str]) -> bool:
         if type_ == "schema":
-            return name == "core"
+            return name in ("core", "mod_skills")
         if type_ == "table":
             return parents["schema_qualified_table_name"] in Base.metadata.tables
         return True
