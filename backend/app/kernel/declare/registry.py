@@ -87,10 +87,10 @@ class Registry:
 
     def operation[H: Handler](self, name: str, declares: Declares) -> Callable[[H], H]:
         _validate(name, declares)
-        if name in self._operations:
-            raise ValueError(f"operation {name!r} is declared twice; {_SEE}")
 
         def register(fn: H) -> H:
+            if name in self._operations:
+                raise ValueError(f"operation {name!r} is declared twice; {_SEE}")
             doc = inspect.getdoc(fn) or ""
             self._operations[name] = Operation(
                 name=name,
@@ -185,6 +185,8 @@ def _validate_reversal(name: str, declares: Declares) -> None:
 
 
 def _args_model(name: str, fn: Handler) -> type[BaseModel]:
+    if not inspect.iscoroutinefunction(fn):
+        raise TypeError(f"operation {name!r} must be an async function")
     parameters = list(inspect.signature(fn).parameters)
     if len(parameters) != 2:
         raise TypeError(f"operation {name!r} must take (ctx, args), not {parameters}")

@@ -66,3 +66,23 @@ def test_version_id_is_content_addressed() -> None:
         ids.append(registry.version_id(registry.get("note.write_note")))
     assert ids[0] == ids[1]
     assert ids[0] != ids[2]
+
+
+def test_duplicate_name_rejected_at_registration() -> None:
+    registry = Registry()
+    write = Declares(mode="write", reversal="irreversible")
+    first = registry.operation("note.write_note", write)
+    second = registry.operation("note.write_note", write)
+
+    first(_write)
+    with pytest.raises(ValueError, match="declared twice"):
+        second(_write)
+
+
+def test_sync_function_rejected() -> None:
+    def handler(ctx: CallContext, args: Args) -> Json:
+        raise NotImplementedError
+
+    declares = Declares(mode="write", reversal="irreversible")
+    with pytest.raises(TypeError, match="async"):
+        Registry().operation("note.write_note", declares)(handler)
