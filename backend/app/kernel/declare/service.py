@@ -279,7 +279,8 @@ async def _park(ctx: CallContext, call: Call, version_id: str) -> Outcome:
         ctx,
         call,
         "approval_unavailable",
-        {"state": parked.state, "reason": parked.reason},
+        # Not "reason": that key is the denial's own, and the payload carries both.
+        {"state": parked.state, "approval_reason": parked.reason},
     )
 
 

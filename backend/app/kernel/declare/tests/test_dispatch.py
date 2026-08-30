@@ -138,7 +138,7 @@ async def test_asks_first_without_a_run_is_denied(
 ) -> None:
     """An approval is addressed by a continuation, so a call outside a run cannot park.
 
-    What an `asks_first` call inside a run does is `tests/test_approval_flow.py`.
+    What an `asks_first` call inside a run does is `test_approval_flow.py`.
     """
     org, principal = scopes[1]
     async with session(org, principal) as scoped:
