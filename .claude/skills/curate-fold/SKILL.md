@@ -5,7 +5,7 @@ description: Decides each open suggestions-file entry, drains the curator's inbo
 
 # curate-fold
 
-`$V` as defined in AGENTS.md. The file is `$V/90-meta/suggestions.md`, written by `self-curate` (decision log, 2026-08-24, D5). Fires at the start of every wave, and whenever that file reaches five open entries.
+`$V` as defined in AGENTS.md. The file is `$V/90-meta/suggestions.md`, written by `self-curate` (decision log, 2026-08-24, D5). Fires at the start of every wave, and whenever `grep -c '→ \*open\*$'` over that file and `$V/90-meta/curate-inbox.md` together reaches five (each file's header carries one example marker; subtract it).
 
 ## Procedure
 

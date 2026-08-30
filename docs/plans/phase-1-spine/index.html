@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 1: the spine (plan)</title>
+<style>
+  /* Design tokens, verbatim from the vault design brief §4. */
+  :root {
+    --field:      #FBF8F3;
+    --card:       #FFFFFF;
+    --ink:        #221C18;
+    --seam:       #E4DCD1;
+    --thread:     #9E1D32;
+    --approved:   #2E7A57;
+    --pending:    #A8730F;
+    --alarm:      #C64242;
+
+    --ink-quiet:  color-mix(in srgb, var(--ink) 62%, transparent);
+    --ink-faint:  color-mix(in srgb, var(--ink) 40%, transparent);
+    --wash:       color-mix(in srgb, var(--thread) 6%, transparent);
+
+    --measure: 68ch;
+    --step-0: 1rem;
+    --step-1: 1.15rem;
+    --step-2: 1.45rem;
+    --step-3: 2rem;
+    --step-4: 2.7rem;
+
+    --face: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --face-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --field:    #191412;
+      --card:     #221C18;
+      --ink:      #EFE6DB;
+      --seam:     #3B322B;
+      --thread:   #E15A68;
+      --approved: #55A87E;
+      --pending:  #D2A03C;
+      --alarm:    #E8756F;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, li, dd, td, th, h1, h2, h3, figcaption) { overflow-wrap: anywhere; }
+  :where(img, svg) { max-width: 100%; height: auto; }
+
+  html { background: var(--field); }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font-family: var(--face);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 66rem; margin: 0 auto; padding: 2.5rem 1.25rem 6rem; }
+
+  .stitch { border: 0; height: 0; border-top: 2px dashed var(--seam); margin: 3rem 0; }
+
+  .masthead { display: flex; gap: 1.1rem; align-items: flex-start; flex-wrap: wrap; }
+  .mark { width: 56px; height: 56px; flex: none; }
+  .masthead h1 { font-size: var(--step-4); line-height: 1.1; margin: 0 0 .35rem; letter-spacing: -0.015em; font-weight: 650; }
+  .kicker { font-size: .8rem; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 .5rem; }
+  .standfirst { font-size: var(--step-1); color: var(--ink-quiet); max-width: var(--measure); margin: .75rem 0 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1.1rem; }
+  .chip { font-size: .78rem; padding: .18rem .6rem; border: 1px solid var(--seam); border-radius: 999px; color: var(--ink-quiet); white-space: nowrap; }
+  .chip-pending  { border-color: var(--pending); color: var(--pending); }
+  .chip-thread   { border-color: var(--thread); color: var(--thread); }
+  .chip-approved { border-color: var(--approved); color: var(--approved); }
+
+  h2 { font-size: var(--step-3); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 .2rem; font-weight: 650; }
+  h2 .num { display: block; font-size: .78rem; letter-spacing: .13em; text-transform: uppercase; color: var(--thread); font-weight: 600; margin-bottom: .35rem; }
+  h3 { font-size: var(--step-2); margin: 2rem 0 .5rem; font-weight: 620; line-height: 1.25; }
+  h4 { font-size: var(--step-1); margin: 1.4rem 0 .35rem; font-weight: 620; }
+  p, li { max-width: var(--measure); }
+  section > p:first-of-type { margin-top: .9rem; }
+  a { color: var(--thread); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  code { font-family: var(--face-mono); font-size: .875em; background: color-mix(in srgb, var(--ink) 6%, transparent); padding: .1em .35em; border-radius: 3px; }
+
+  .card { background: var(--card); border: 1px solid var(--seam); border-radius: 4px; padding: 1.25rem 1.4rem; }
+  .grid { display: grid; gap: 1rem; }
+  @media (min-width: 46rem) { .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  .lede-rule { border-left: 3px solid var(--thread); padding-left: 1.1rem; margin: 1.5rem 0; }
+  .lede-rule p { font-size: var(--step-1); margin: 0; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--seam); border-radius: 4px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; min-width: 40rem; }
+  th, td { text-align: left; padding: .7rem .9rem; vertical-align: top; font-size: .93rem; }
+  thead th { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; border-bottom: 2px dashed var(--seam); }
+  tbody tr + tr td { border-top: 1px solid var(--seam); }
+  td:first-child { font-weight: 600; }
+
+  /* Draft spec sections: each block is one annotation target. */
+  .spec { background: var(--card); border: 1px solid var(--seam); border-radius: 4px; padding: 1.1rem 1.3rem; margin: 1rem 0; }
+  .spec h4 { margin: 0 0 .4rem; }
+  .spec p { margin: .3rem 0; }
+  .draft-tag { display: inline-block; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; color: var(--pending); border: 1px solid var(--pending); border-radius: 999px; padding: .02rem .45rem; margin-left: .5rem; vertical-align: 2px; }
+
+  .decision { background: var(--card); border: 1px solid var(--seam); border-top: 3px solid var(--thread); border-radius: 4px; padding: 1.35rem 1.4rem 1.2rem; margin: 1.5rem 0; }
+  .decision > h3 { margin-top: 0; }
+  .decision .why { color: var(--ink-quiet); font-size: .93rem; }
+  .opts { display: grid; gap: .6rem; margin: 1.1rem 0; }
+  .opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .75rem; align-items: start; border: 1px solid var(--seam); border-radius: 4px; padding: .8rem .95rem; cursor: pointer; }
+  .opt:hover { border-color: var(--thread); }
+  .opt:has(input:checked) { border-color: var(--thread); background: var(--wash); }
+  .opt input { margin-top: .28rem; accent-color: var(--thread); width: 1rem; height: 1rem; }
+  .opt .name { font-weight: 620; display: block; }
+  .opt .note { color: var(--ink-quiet); font-size: .89rem; display: block; margin-top: .15rem; }
+  .rec { font-size: .7rem; letter-spacing: .07em; text-transform: uppercase; color: var(--thread); border: 1px solid var(--thread); border-radius: 999px; padding: .05rem .45rem; margin-left: .45rem; white-space: nowrap; vertical-align: 1px; }
+  .queue { font: inherit; font-weight: 620; font-size: .92rem; color: var(--card); background: var(--thread); border: 1px solid var(--thread); border-radius: 4px; padding: .5rem 1.1rem; cursor: pointer; }
+  .queue:hover { background: color-mix(in srgb, var(--thread) 85%, var(--ink)); }
+  .queued-note { font-size: .87rem; color: var(--approved); margin-left: .75rem; display: none; }
+  form.answered .queued-note { display: inline; }
+  .decision footer { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+
+  /* A settled decision keeps the rejected shape readable. */
+  .settled-mark { display: inline-block; font-size: .7rem; letter-spacing: .07em; text-transform: uppercase; font-weight: 700; color: var(--approved); border: 1px solid var(--approved); border-radius: 999px; padding: .05rem .5rem; margin-left: .5rem; vertical-align: 2px; }
+  .opt input:disabled { cursor: default; }
+  .opt:has(input:disabled) { cursor: default; }
+  .opt:has(input:disabled):hover { border-color: var(--seam); }
+  .opt:has(input:checked:disabled) { border-color: var(--approved); background: color-mix(in srgb, var(--approved) 8%, transparent); }
+  .opt:has(input:checked:disabled):hover { border-color: var(--approved); }
+  .opt:has(input:disabled:not(:checked)) { opacity: .55; }
+  .outcome { border-top: 2px dashed var(--seam); margin-top: 1rem; padding-top: .85rem; font-size: .93rem; color: var(--ink-quiet); }
+  .outcome strong { color: var(--ink); }
+
+  .phase { border-left: 3px solid var(--seam); padding: .2rem 0 .2rem 1.15rem; margin: 1.4rem 0; }
+  .phase.now { border-left-color: var(--thread); }
+  .phase h3 { margin: 0 0 .3rem; }
+  .phase .maps { font-size: .8rem; color: var(--ink-faint); letter-spacing: .04em; text-transform: uppercase; margin: 0 0 .4rem; }
+  ul.plain { padding-left: 1.15rem; }
+  ul.plain li { margin: .35rem 0; }
+  .footnote { color: var(--ink-faint); font-size: .85rem; }
+</style>
+</head>
+<body>
+<main class="page">
+
+<header class="masthead">
+  <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="AgentQuilt Kanatitsa mark">
+    <rect x="10" y="10" width="44" height="44" fill="none" stroke="currentColor" stroke-width="3" />
+    <path d="M32 14 L50 32 L32 50 L14 32 Z M32 23 L23 32 L32 41 L41 32 Z" fill="var(--thread)" fill-rule="evenodd" />
+    <path d="M34.3 21.3 L37.5 24.5 M39.5 26.5 L42.7 29.7 M42.7 34.3 L39.5 37.5 M37.5 39.5 L34.3 42.7 M29.7 42.7 L26.5 39.5 M24.5 37.5 L21.3 34.3 M21.3 29.7 L24.5 26.5" stroke="var(--field)" stroke-width="2.2" />
+  </svg>
+  <div style="flex:1 1 22rem">
+    <p class="kicker">Plan &middot; factory &middot; 2026-08-30 &middot; executability 8/10, dispatch 1 of 3, Codex rounds 1–4 folded, cap reached &middot; approved 17:03 ("I am ok with it")</p>
+    <h1>Phase 1: the spine</h1>
+    <p class="standfirst">
+      The kernel of six modules and the smallest modules above it, built to the point where one
+      governed, multi-tenant chat turn runs end to end against a scripted fake model, and every
+      column that cannot be retrofitted is in the first migration. Eleven waves, ten of them one
+      bounded Opus dispatch each and one a design round. Seven decisions below, all settled on 2026-08-30; the rest of the page is what the implementer executes.
+    </p>
+    <div class="chips">
+      <span class="chip chip-approved">7 of 7 decisions settled 2026-08-30</span>
+      <span class="chip">11 waves, one Codex round each</span>
+      <span class="chip">Sources: roadmap Phase 1, system-structure v1.1, ADRs 0001–0027, walking-skeleton notes, Context7</span>
+    </div>
+  </div>
+</header>
+
+<hr class="stitch">
+
+<section id="scope">
+  <h2><span class="num">1</span>What "working state" means for this phase</h2>
+  <p>
+    Roadmap Phase 1 (<code>$V/docs/roadmap/index.md:28–36</code>): all six kernel modules plus
+    minimal <code>surfaces</code>, <code>memory</code>, <code>governance</code> and <code>skills</code>;
+    one governed multi-tenant chat turn on the web thread; everything non-retrofittable in the first
+    migrations. The proof is the twelve-clause first-slice flow in
+    <code>$V/20-specs/walking-skeleton-notes.md:22</code>, each clause one executable acceptance test:
+  </p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>#</th><th>Clause</th><th>Kernel part that proves it</th><th>Test name</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>A user in organisation A creates a run for an agent</td><td><code>runs.create</code> under the org-scoped session; ceiling stored on the run (ADR-0015)</td><td><code>test_user_creates_run</code></td></tr>
+      <tr><td>2</td><td>The agent gets one versioned skill</td><td><code>skills</code>: content-addressed <code>skill_version</code>, tier not model (ADR-0009), <code>execution_mode</code> (ADR-0013)</td><td><code>test_run_binds_one_skill_version</code></td></tr>
+      <tr><td>3</td><td>The fake model proposes one harmless tool action</td><td><code>FakeModelRunner</code> scripted with Pydantic AI <code>FunctionModel</code>; plan journaled before dispatch (ADR-0017)</td><td><code>test_fake_model_proposes_action</code></td></tr>
+      <tr><td>4</td><td>The action is checked at call time against the acting principal's grants</td><td><code>identity.effective_grants</code> called by dispatch (ADR-0015, ADR-0026); <code>denial</code> event on refusal</td><td><code>test_grant_checked_at_call_time</code></td></tr>
+      <tr><td>5</td><td>It requires approval</td><td>Grant level <code>asks_first</code> (decision D3); dispatch opens an <code>approval</code> row and parks the step</td><td><code>test_asks_first_opens_approval</code></td></tr>
+      <tr><td>6</td><td>The approval binds to the exact action digest</td><td>Consume-once <code>UPDATE … RETURNING</code> on <code>args_hash</code> (ADR-0004, ADR-0017); changed args yield <code>approval_unavailable</code></td><td><code>test_approval_binds_to_digest</code></td></tr>
+      <tr><td>7</td><td>It executes in a constrained worker</td><td>The <code>work</code> role, not <code>serve</code>, dispatches the call under the run's ceiling (ADR-0011); see premise 11</td><td><code>test_action_runs_in_worker</code></td></tr>
+      <tr><td>8</td><td>Events stream and persist</td><td>Run journal in <code>core.event</code>; SSE by ledger cursor from <code>serve</code>, replayable</td><td><code>test_events_stream_and_replay</code></td></tr>
+      <tr><td>9</td><td>A action records the result</td><td><code>core.action</code> 1:1 with the operation-commit event (ADR-0002); <code>governance.undo(action)</code> runs the compensator</td><td><code>test_action_written_and_undoable</code></td></tr>
+      <tr><td>10</td><td>A retry does not duplicate the action</td><td><code>UNIQUE (org_id, operation_name, idempotency_key)</code>; replay returns the stored action (ADR-0017)</td><td><code>test_retry_returns_stored_action</code></td></tr>
+      <tr><td>11</td><td>A user in organisation B can neither read nor steer the run</td><td>RLS on <code>org_id</code> (ADR-0008); steering goes through the grants path; two-principals test helper (ADR-0017)</td><td><code>test_org_b_cannot_read_or_steer</code></td></tr>
+      <tr><td>12</td><td>The run is cancellable and budgeted</td><td><code>runs.cancel</code> and the per-run token cap in <code>model</code> (decision D4)</td><td><code>test_cancel_and_budget</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>
+    Working state, stated as a command: <code>docker compose up</code> starts Postgres, <code>serve</code>,
+    <code>work</code> and <code>tick</code>; a bearer-token <code>POST /threads</code> followed by
+    <code>POST /runs/{id}/messages</code> yields an SSE stream that shows the model's proposed action,
+    an open approval, and after <code>POST /approvals/{id}/decide</code> a action that
+    <code>POST /actions/{id}/undo</code> walks back. No screen; the designed chat screen is Phase 2.
+  </p>
+</section>
+
+<hr class="stitch">
+
+<section id="premises">
+  <h2><span class="num">2</span>Premises, each checked</h2>
+  <p>Every assumption the plan rests on, phrased so it could be false, with where it was confirmed.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>#</th><th>Premise</th><th>Confirmed by</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>The repo holds no product code: no <code>backend/</code>, no <code>src/</code>, no <code>pyproject.toml</code></td><td><code>ls</code> at the repo root: AGENTS.md, CLAUDE.md, CONTRIBUTING.md, LICENSE, NOTICE, README.md, REVIEW.md, TRADEMARK.md, docs/, temp/ only</td></tr>
+      <tr><td>2</td><td>The stack is settled as Python/uv, FastAPI, Postgres in Docker, WSL2 on ext4</td><td><code>AGENTS.md</code> "What AgentQuilt is", last line</td></tr>
+      <tr><td>3</td><td>No Docker is reachable from this WSL shell, and no Docker Desktop is installed</td><td><code>which docker docker.exe</code> empty; no Docker Desktop install on the Windows side (checked 2026-08-30). Decision D1</td></tr>
+      <tr><td>4</td><td>Phase 1 scope is the spine; the chat screen, KB and Telegram are Phases 2 and 3</td><td><code>$V/docs/roadmap/index.md:28–36</code>; owner, 2026-08-30: "the focus will be to build the basic foundation or also known as kernel"</td></tr>
+      <tr><td>5</td><td>The acceptance flow is the twelve clauses, one test each, against a deterministic fake</td><td><code>$V/20-specs/walking-skeleton-notes.md:12,:22–24</code></td></tr>
+      <tr><td>6</td><td>The non-retrofittable schema list is the twenty items the ADRs bind to the first migration</td><td>ADR digest section B (ADR-0002:26, 0004:26, 0005:27, 0006:26, 0008:14, 0009:25, 0012:25, 0015:18, 0017:18–23, 0019:18–19, 0022:27); section 5 of this page</td></tr>
+      <tr><td>7</td><td>Pydantic AI 2.0.0 is the current stable line; <code>FunctionModel</code> scripts tool calls; prompt-cache breakpoints are provider-specific (an Anthropic <code>CachePoint</code>, an OpenAI-compatible cache key, nothing on others), so the adapter treats them as optional per provider and nothing outside the adapter names a provider</td><td>Context7, <code>/pydantic/pydantic-ai</code>, 2026-08-30 (investigation note, not in the repo)</td></tr>
+      <tr><td>8</td><td>The implementer runs at medium effort, 24 turns, no sub-agents; a diff stays under ~500 changed lines</td><td><code>.claude/agents/implementer.md</code> frontmatter; <code>.claude/rules/python.md</code> "keep a diff under ~500 changed lines"</td></tr>
+      <tr><td>9</td><td>Gate commands do not exist yet; they land with the first scaffold, each with its trap inline</td><td><code>AGENTS.md</code> "Gates"</td></tr>
+      <tr><td>10</td><td>Two design-before-build items gate Phase 1 code: the <code>ContextContributor</code> interface and reversibility semantics</td><td><code>$V/docs/roadmap/index.md:22–23</code>; ADR-0027:36; ADR-0003:14. Decisions D2, D3</td></tr>
+      <tr><td>11</td><td>Phase 1 executes no agent-written code, so no <code>Sandbox</code> adapter is needed; "constrained worker" means the <code>work</code> process under the run's ceiling</td><td><code>walking-skeleton-notes.md:26</code> ("a full browser worker" and "arbitrary package installation" are out); ADR-0011:25. Marked as an assumption for Codex and the owner</td></tr>
+      <tr><td>12</td><td>Cancellation and budget have no ADR, yet clause 12 requires both</td><td>ADR digest E-2, E-3: grep over <code>$V/docs/architecture/</code> finds no "cancel"; <code>system-structure.md:51</code> puts budget policy outside the kernel while <code>glossary.md:35</code> has denial cover budget. Decision D4</td></tr>
+      <tr><td>13</td><td>Postgres has no nested schemas, so the ADRs' three-part names (<code>core.run.runs</code>) are prose, not DDL, and table names are singular</td><td><code>$V/docs/architecture/naming-conventions.md:55–56</code>; ADR digest E-4, E-5. Decision D5</td></tr>
+      <tr><td>14</td><td>SQLAlchemy's documented connect-event <code>search_path</code> recipe is connection-scoped and would leak tenant context across a pooled connection; tenant context must be transaction-scoped (<code>SET LOCAL</code> in <code>after_begin</code>)</td><td>Context7, SQLAlchemy 2.0 docs, 2026-08-30 (investigation note, not in the repo)</td></tr>
+      <tr><td>15</td><td>The one authentication in Phase 1 is a seeded user with a bearer token; no SSO, no OAuth, no signup</td><td>No document names a Phase 1 auth mechanism (<code>surfaces</code> row, <code>system-structure.md:74</code>, names only the surface contract). Decision D6</td></tr>
+    </tbody>
+  </table></div>
+  <p>No premise is unconfirmed. Premises 3, 10, 12, 13 and 15 each carry a decision below.</p>
+</section>
+
+<hr class="stitch">
+
+<section id="decisions">
+  <h2><span class="num">3</span>Decisions for you</h2>
+  <p>Each card: what you said, what we recommend, why, what we might be missing, cost if wrong. Mark the option or write on the card.</p>
+
+  <div class="decision">
+    <h3>D1: Where does Postgres run on the build machine? <span class="settled-mark">Settled 2026-08-30</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> the stack is Postgres in Docker inside WSL2 (AGENTS.md).
+      <strong>The record:</strong> this shell has no <code>docker</code> and there is no Docker Desktop.
+      The gates need a real Postgres from wave 0, and the product's packaging is one compose file
+      (ADR-0011), so the compose file cannot be tested here either until this is answered.
+    </p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d1" checked disabled><span><span class="name">Docker Engine inside WSL</span>
+        <span class="note">Native <code>docker</code> from the Ubuntu apt repository, no Desktop. The same compose file serves dev, tests (testcontainers) and the self-host story. One install, done by you or with your word; nothing else changes.</span></span></label>
+      <label class="opt"><input type="radio" name="d1" disabled><span><span class="name">Native Postgres 17 in WSL, Docker later</span>
+        <span class="note">Unblocks tests in an hour; the compose file stays untested until Docker exists, which contradicts the settled stack and delays the one-image packaging proof.</span></span></label>
+      <label class="opt"><input type="radio" name="d1" disabled><span><span class="name">Point tests at a Postgres on another of the owner's servers</span>
+        <span class="note">Violates "each developer's own local Postgres, never shared" (<code>release-and-environments.md:44</code>) and puts a public-repo test suite on a server that hosts other things.</span></span></label>
+    </div>
+    <p class="why"><strong>Might be missing:</strong> nothing known. <strong>Cost if wrong:</strong> one reinstall; no code depends on which choice.</p>
+    <div class="outcome"><strong>Settled 2026-08-30, under the judgment you delegated on the page</strong> ("I don't have any preference here, I will give the best judgment on you"): Docker Engine in WSL, installed the same day. A shared server was considered and refused by <code>release-and-environments.md:44</code> (each developer's own local Postgres, never shared).</div>
+  </div>
+
+  <div class="decision">
+    <h3>D2: The <code>ContextContributor</code> seam: design it twice as wave 6, or before any code?</h3>
+    <p class="why">
+      <strong>What you said:</strong> the roadmap lists this interface as a Phase 0 design-before-build item that
+      "gates the chat prefix" (<code>index.md:22</code>); ADR-0027 records the two-contract candidate
+      "to beat" and says the design-it-twice runs before the walking skeleton (<code>:36</code>).
+      <strong>What we recommend:</strong> run the design-it-twice as wave 6, a code-free wave, by the
+      <code>architect</code> agent (Fable), with two or three alternatives against ADR-0027's candidate;
+      Fable adjudicates, the ADR is amended, and wave 7 builds the winner.
+    </p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d2" checked disabled><span><span class="name">Design-it-twice as its own wave 6, ADR-0027 amended there <span class="rec">Recommended</span></span>
+        <span class="note">The rule is honoured (two or three genuine alternatives before locking), and it runs when the two callers (<code>context.assemble</code> and the <code>instructions</code> and <code>skills</code> adapters) are concrete enough to judge against. Waves 0 to 5 do not touch the seam; the round is its own wave (wave 6) so no wave holds two dispatches.</span></span></label>
+      <label class="opt"><input type="radio" name="d2" disabled><span><span class="name">Adopt ADR-0027's candidate as is, no second round</span>
+        <span class="note">Fastest; breaks the design-it-twice rule that the ADR itself invokes, and memory joins later as the third adapter with no evidence the contract fits.</span></span></label>
+      <label class="opt"><input type="radio" name="d2" disabled><span><span class="name">A separate design round before wave 0</span>
+        <span class="note">Cleanest reading of "Phase 0"; costs a plan round with nothing to judge it against, since the callers do not exist yet.</span></span></label>
+    </div>
+    <p class="why"><strong>Might be missing:</strong> the memory module's Phase 2 needs may not be judgeable in wave 5 at all. <strong>Cost if wrong:</strong> one seam rewrite touching <code>context</code> and two adapters, before Phase 2.</p>
+  </div>
+
+  <div class="decision">
+    <h3>D3: Reversibility in the spine: fields now, semantics stay open <span class="settled-mark">Settled 2026-08-30</span></h3>
+    <p class="why">
+      <strong>What you said (2026-08-28):</strong> classify every operation reversible or not, keep a full audit trail
+      regardless, let the operator reverse where a compensator exists, and show non-reversible items as unavailable.
+      <strong>The record:</strong> lock #3 (ADR-0003) freezes only the guarantees; the semantics inside the classes
+      (compensation failure, partial reversal, draft lifecycle, approval cardinality) are the parked open question,
+      and the roadmap says they gate "declaring any write operation" (<code>index.md:23</code>). Clause 9 needs one write.
+    </p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d3" checked disabled><span><span class="name">Build the fields and one reversible operation; leave the semantics parked <span class="rec">Recommended</span></span>
+        <span class="note">The registry carries <code>mode</code>, <code>reversal ∈ {reversible, draftable, irreversible}</code>, <code>compensator_ref</code>; the skeleton's one action is <code>reversible</code> with a real compensator; <code>governance.undo(action)</code> runs it once and refuses <code>irreversible</code> with a reason. Whether an operation asks first is the grant's capability level (<code>may_use</code> / <code>asks_first</code> / <code>never</code>, the design's Capability row), not its reversal class. Compensation failure, partial reversal and draft lifecycle are not exercised and stay in open questions with the trigger "the CRM slice declares its first external write".</span></span></label>
+      <label class="opt"><input type="radio" name="d3" disabled><span><span class="name">Settle the full semantics first</span>
+        <span class="note">The literal reading of the roadmap line. It answers questions no Phase 1 operation asks, on paper, and holds every wave behind a design round.</span></span></label>
+    </div>
+    <p class="why"><strong>Might be missing:</strong> the compensator's failure path is exactly the thing the CRM slice will need first. <strong>Cost if wrong:</strong> the action's compensator columns gain fields later; additive, no rewrite.</p>
+  </div>
+
+  <div class="decision">
+    <h3>D4: Cancel and budget, unrecorded until now <span class="settled-mark">Settled 2026-08-30</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> clause 12, "the run is cancellable and budgeted"; on 2026-08-27, tool-call limits fold into budget policy
+      and get no new machinery. <strong>The record:</strong> no ADR mentions cancel; budget policy is "deliberately not kernel"
+      (<code>system-structure.md:51</code>) while the hard per-run token cap is enforced in <code>model</code> (<code>:49</code>).
+      <strong>Recommendation:</strong> the smallest shapes that fit the locks, no new event kind, no new table.
+    </p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d4" checked disabled><span><span class="name">Cancel is a run-state change plus a journal event; budget is a cap column on the run <span class="rec">Recommended</span></span>
+        <span class="note"><code>runs.cancel(run_id)</code>, in one transaction, sets <code>run.state = cancelled</code>, deletes the run's <code>step_queue</code> rows, closes the run's <code>requested</code> and <code>open</code> approvals (<code>state = expired</code>, <code>reason = run_cancelled</code>) so neither <code>decide</code> (which acts only on <code>requested</code>) nor dispatch (which consumes only <code>open</code>) can touch them, and appends the run-journal event <code>run.cancelled</code>; a worker that holds a lease sees the state at its next step boundary and stops. <code>run.budget_cap_tokens</code> is copied from the agent definition at create; <code>model.run</code> refuses a call that would exceed it with a <code>denial</code> of reason <code>budget_exceeded</code>. Policy (who sets the cap, resets) stays governance data, later.</span></span></label>
+      <label class="opt"><input type="radio" name="d4" disabled><span><span class="name">Write an ADR first</span>
+        <span class="note">The architecture rule says an ADR only for hard-to-reverse, surprising choices; neither is. Recorded instead as one decision-log line when you approve.</span></span></label>
+    </div>
+    <p class="why"><strong>Might be missing:</strong> cost caps in currency, not tokens, once tier bindings carry prices. <strong>Cost if wrong:</strong> one column rename.</p>
+  </div>
+
+  <div class="decision">
+    <h3>D5: Code layout and Postgres names <span class="settled-mark">Settled 2026-08-30</span></h3>
+    <p class="why">
+      <strong>The record disagrees with itself:</strong> <code>system-structure.md:106–145</code> lays out
+      <code>backend/app/kernel/{store,identity,declare,runs,context,model}/</code> with <code>kernel/ports/</code>;
+      <code>.claude/rules/python.md</code> says "structure by domain (<code>src/&lt;domain&gt;/…</code>)" and its
+      path glob is <code>src/**</code>. The ADRs write <code>core.run.runs</code> and <code>core.ledger.approvals</code>;
+      <code>naming-conventions.md:55–56</code> says two schemas (<code>core</code>, <code>mod_&lt;module&gt;</code>) and singular tables.
+    </p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d5" checked disabled><span><span class="name">System-structure layout; two schemas; singular tables; rules globs updated in wave 0 <span class="rec">Recommended</span></span>
+        <span class="note"><code>backend/app/kernel/&lt;module&gt;/</code> with each module's <code>MODULE.md</code>, <code>models.py</code>, <code>service.py</code>, and <code>router.py</code> where a route exists; <code>backend/app/kernel/ports/</code>; <code>backend/app/modules/&lt;module&gt;/</code>. Tables: <code>core.org</code>, <code>core.event</code>, <code>core.action</code>, <code>core.approval</code>, <code>core.run</code>, <code>core.step_queue</code>, <code>core.tier_binding</code>… The ADRs' middle segment (<code>ledger</code>, <code>run</code>, <code>model</code>) is the owning kernel module, kept in each table's comment. <code>python.md</code> and <code>architecture.md</code> globs become <code>backend/**</code>.</span></span></label>
+      <label class="opt"><input type="radio" name="d5" disabled><span><span class="name">Six Postgres schemas mirroring the ADR names (<code>core_ledger</code>, <code>core_run</code>…)</span>
+        <span class="note">Keeps the ADR spelling literal at the cost of RLS policies and grants per schema, six times.</span></span></label>
+      <label class="opt"><input type="radio" name="d5" disabled><span><span class="name">Every table prefixed <code>ag_</code> (your suggestion on the page)</span>
+        <span class="note">Recommended against: the schema already is the prefix. Every table lives in <code>core</code> or <code>mod_&lt;module&gt;</code>, never in <code>public</code>, so <code>psql</code>, any client and every query show <code>core.run</code>, <code>mod_skills.skill</code>; a second prefix repeats what the schema says (<code>naming-conventions.md:57</code>, "no table-name prefix"). If the worry is a database shared with another application, the schemas separate the two at the grant level, which a prefix cannot.</span></span></label>
+    </div>
+    <p class="why"><strong>Might be missing:</strong> nothing structural; this is spelling. <strong>Cost if wrong:</strong> a rename migration before the first external install.</p>
+  </div>
+
+  <div class="decision">
+    <h3>D6: Authentication for the Phase 1 web thread <span class="settled-mark">Settled 2026-08-30</span></h3>
+    <p class="why">
+      <strong>The record:</strong> no document names how a user authenticates in Phase 1. Clause 11 needs two users in two orgs,
+      nothing more. <strong>Recommendation:</strong> the least that proves multi-tenancy.
+    </p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d6" checked disabled><span><span class="name">Seeded users with bearer tokens <span class="rec">Recommended</span></span>
+        <span class="note">A <code>core.user_token</code> row (token hash, user, created_at, revoked_at); <code>agentquilt seed</code> creates two orgs, two users, one agent definition, one skill and prints the tokens. <code>serve</code> resolves the bearer to a principal and opens the org-scoped session. No login page, no signup, no password. Real login arrives with the admin plane's People section (Phase 2 admin v0 or Phase 4).</span></span></label>
+      <label class="opt"><input type="radio" name="d6" disabled><span><span class="name">Session cookies with a password login now</span>
+        <span class="note">Builds a login surface two phases before its screen exists, in a phase with no frontend.</span></span></label>
+    </div>
+    <p class="why"><strong>Might be missing:</strong> the Phase 2 chat screen needs a browser login; a token in local storage bridges it. <strong>Cost if wrong:</strong> one table, replaceable.</p>
+  </div>
+
+  <div class="decision">
+    <h3>D7: The word "receipt" <span class="settled-mark">Settled 2026-08-30</span></h3>
+    <p class="why">
+      <strong>What you said (on the page, twice):</strong> "Do we want to call it a receipt or something like an action? Because receipt is really not good terminology and we may want to change it everywhere to something that is a lot more meaningful."
+      <strong>The record:</strong> "receipt" is the glossary's word for the record that pairs 1:1 with every operation-commit event: why the action was permitted (decision trace, approval, idempotency key) and how it is walked back (compensator and args). It appears in ADR-0002/0003/0004/0017/0020/0022, the design catalogue's Receipt pattern (the 3px stitch edge, "Undo this"), and the CRM record's "creation receipt strip".
+      <strong>What we recommend:</strong> rename it to <strong>action</strong> now, while no code exists.
+    </p>
+    <div class="opts">
+      <label class="opt"><input type="radio" name="d7" checked disabled><span><span class="name">Rename receipt → action, everywhere, now <span class="rec">Recommended</span></span>
+        <span class="note">One vocabulary: an <em>operation</em> is the declared capability; a <em>call</em> is the agent asking for it; an <em>action</em> is the record of one performed call: what was done, why it was permitted, how to undo it. On screen: "Undo this action", "Actions" as the ledger browse, the CRM record's "created by" strip. Tables: <code>core.action</code> beside <code>core.event</code>. Cost now: the glossary entry, one line in the ADR README saying the word changed on 2026-08-30 (ADR bodies are settled records and keep their text, like the AP removal), the catalogue's pattern name, and the plan's own text. Cost after wave 3: a table rename and every call site.</span></span></label>
+      <label class="opt"><input type="radio" name="d7" disabled><span><span class="name">Keep "receipt"</span>
+        <span class="note">Nothing to change; the word stays the one the ADRs and the screens already use. The objection that it reads as a shop slip stands.</span></span></label>
+      <label class="opt"><input type="radio" name="d7" disabled><span><span class="name">Another word (write it on the card)</span>
+        <span class="note">"Record" is too generic to search for; "proof" says why-permitted but not how-to-undo; "trace" is what the decision path inside it is called. Your word, if you have one, beats all three.</span></span></label>
+    </div>
+    <div class="outcome"><strong>Settled:</strong> "I am ok with it" on the page, 2026-08-30. The rest of this page now says <em>action</em>; the glossary, the ADR README and the design catalogue carry the word change.</div>
+    <p class="why"><strong>Might be missing:</strong> "action" is also what the model's tool call is loosely called in prose; the glossary line above is what keeps the two apart. <strong>Cost if wrong:</strong> nil before wave 3, a rename migration after.</p>
+  </div>
+</section>
+
+<hr class="stitch">
+
+<section id="alternatives">
+  <h2><span class="num">4</span>Approaches considered</h2>
+  <div class="grid grid-2">
+    <div class="card"><h4>Chosen: the spine, kernel-first, eleven bounded waves</h4>
+      <p>Migration 0001 with every non-retrofittable column; six kernel modules built in dependency order (store → ledger → registry and dispatch → identity and approvals → runs and the work loop → context and model); then the smallest modules above and the web thread; then the acceptance suite. Each code wave is one Opus dispatch inside 24 turns and ~500 lines; the one design wave is an architect round with no code.</p></div>
+    <div class="card"><h4>Beaten: the walking skeleton wearing the chat screen</h4>
+      <p>The same spine plus <code>frontend/</code> with the designed Screen 1. Beaten because you chose kernel first (2026-08-30), because it doubles the wave count before any invariant is proven, and because the design system's component-first build has its own plan (Phase 2).</p></div>
+    <div class="card"><h4>Beaten: rent the loop, add the ledger after</h4>
+      <p>Start from a Pydantic AI <code>Agent</code> with its own message history and bolt actions on. Beaten by the rent test (ADR-0024): deterministic prefix assembly, actions at commit and tier switching all live inside the loop, and a retrofitted ledger is exactly the second history the locks forbid.</p></div>
+    <div class="card"><h4>Beaten: one big wave per kernel module</h4>
+      <p>Six waves instead of eleven. Beaten by premise 8: a module such as <code>declare</code> (tables, writer role, registry, dispatch, idempotency, approvals) is over 500 lines and past 24 turns; a stretched implementer is the failure mode the 2026-08-30 bounds exist to prevent.</p></div>
+  </div>
+</section>
+
+<hr class="stitch">
+
+<section id="schema">
+  <h2><span class="num">5</span>Migration 0001: what lands and why it cannot wait</h2>
+  <p>One migration, <code>0001_create_spine</code>, carries every table below; later waves add code, never DDL (wave 1 is the migration alone), so the task line "everything non-retrofittable lands in the first migration" is literal. Two Postgres schemas, <code>core</code> and <code>mod_skills</code> (the only module with tables in Phase 1; <code>mod_memory</code> waits for the KB v1 plan, where the dossier version spine and the plural anchor table are already decided to land). Tables singular per D5. Every tenant-scoped table carries <code>org_id</code> and an RLS policy keyed on <code>current_setting('app.org_id')</code>; deployment-global tables carry none.</p>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Table</th><th>Columns that matter</th><th>Non-retrofittable because</th></tr></thead>
+    <tbody>
+      <tr><td><code>core.org</code>, <code>core.user</code>, <code>core.principal</code>, <code>core.user_token</code></td><td><code>principal.class ∈ {user, agent, run, system, external}</code>; <code>agent_definition</code> (soul text, tier, budget cap, memory scope, version)</td><td>RLS from the first migration, keyed on <code>org_id</code> and nothing else (ADR-0008:14); external is a principal class, not a table (ADR-0022)</td></tr>
+      <tr><td><code>core.role</code>, <code>core.grant</code></td><td><code>grant(principal_id, operation_name, level ∈ {may_use, asks_first, never}, scope_form ∈ {entity, node_plus_descendants, all_of_type})</code></td><td>Policy content is data (ADR-0026); the scope-form column lands in the first governance migration even though only explicit grants are written (open questions, 2026-08-28)</td></tr>
+      <tr><td><code>core.event</code></td><td><code>kind ∈ {operation_commit, run_journal, read_audit, denial}</code>; <code>(aggregate_kind, aggregate_id, aggregate_version)</code> with <code>UNIQUE (org_id, aggregate_kind, aggregate_id, aggregate_version)</code>; <code>payload</code> the only redactable column</td><td>Append-only under the <code>agentquilt_ledger_writer</code> role; only it may INSERT, nothing may UPDATE or DELETE except payload columns by the future <code>redact</code> (ADR-0002:26, ADR-0022:17); entity streams (ADR-0017:18)</td></tr>
+      <tr><td><code>core.stream_head</code></td><td><code>(org_id, aggregate_kind, aggregate_id, version, last_event_id)</code></td><td><code>expected_version</code> check in the commit transaction (ADR-0017:19)</td></tr>
+      <tr><td><code>core.action</code></td><td>1:1 with an <code>operation_commit</code> event; <code>operation_version_id</code>; approval ref; idempotency key; compensator ref and args; external-effect phases nullable</td><td>Un-actioned history is permanently un-undoable (ADR-0002:14)</td></tr>
+      <tr><td><code>core.operation_version</code></td><td>Content-addressed declaration snapshot; <code>stage ∈ {DEV, QA, PROD}</code></td><td>Actions stay interpretable after code changes; planes are an attribute (ADR-0012)</td></tr>
+      <tr><td><code>core.idempotency_key</code></td><td><code>UNIQUE (org_id, operation_name, idempotency_key)</code>, <code>action_id</code> nullable: the row is a reservation inserted at first dispatch and completed with the action in the commit transaction</td><td>Retry semantics (ADR-0017:22)</td></tr>
+      <tr><td><code>core.approval</code></td><td><code>granted_to, granted_by, operation_version_id, args_hash, state ∈ {requested, open, consumed, rejected, expired, superseded}, expires_at, consumed_by_action_id, reason</code>; continuation identity <code>run_id, step_no, tool_call_id</code>. Dispatch creates the row as <code>requested</code>; a person's approve moves it to <code>open</code> (the grant, ADR-0004: grantor class <code>user</code> or <code>system</code>); dispatch consumes <code>open → consumed</code> once</td><td>Consume-once predicate needs every column from day one (ADR-0004:14, ADR-0017:21)</td></tr>
+      <tr><td><code>core.run</code></td><td><code>parent_id, stage, state ∈ {queued, running, waiting_approval, cancelled, done, failed}, failure_reason, budget_cap_tokens, prefix_key, capability_ceiling (jsonb), narrowing_state (jsonb, root only), acting_external_principal_id, pinned_worker_id, worker_heartbeat_at, prefix_profile ∈ {personal, space, none}</code></td><td>Ceiling (ADR-0015:37), conversation-as-run (ADR-0022:27), affinity columns are two nullables now rather than a live-table change later (ADR-0005:27; ADR-0018:30 says additive, so cost is nil either way), L3 profile (ADR-0016)</td></tr>
+      <tr><td><code>core.step_queue</code></td><td><code>(run_id, step_no, queue_tag, lease_until, claimed_by)</code>; per-table autovacuum settings</td><td>Splitting a live queue table later is a data migration (ADR-0019:31)</td></tr>
+      <tr><td><code>core.mailbox_message</code></td><td><code>(run_id, seq)</code> unique; <code>kind ∈ {steer, conflict, context_lost}</code>; <code>author_principal_id</code></td><td>Order and acting-principal attribution (ADR-0017:23–24)</td></tr>
+      <tr><td><code>core.checkpoint</code>, <code>core.context_manifest</code></td><td>Manifest per model call: layers with <code>(slot, owner, layer_version)</code>, token cost, cache positions, telemetry, effective scope</td><td>How you debug an agent's belief (ADR-0006:26, ADR-0014:31)</td></tr>
+      <tr><td><code>core.tier</code>, <code>core.tier_binding</code>, <code>core.usage_record</code></td><td><code>tier ∈ {orchestrator, executor, simple, image}</code>; binding = <code>(provider, model, effort)</code>, deployment-global</td><td>The one place a model id appears (ADR-0009:25)</td></tr>
+      <tr><td><code>mod_skills.skill</code>, <code>mod_skills.skill_version</code></td><td>Content-addressed; <code>tier</code>; <code>execution_mode ∈ {inline, delegated}</code>; <code>operations[]</code> (validator rejects a non-empty list on inline); <code>stage</code></td><td>ADR-0013:32, ADR-0012. <code>eval_run</code> and its result CHECK (ADR-0021) wait for the eval runner, Phase 2; a CHECK is additive</td></tr>
+    </tbody>
+  </table></div>
+  <p>Roles: <code>agentquilt_app</code> (RLS-bound, no INSERT on <code>core.event</code> or <code>core.action</code>) and <code>agentquilt_ledger_writer</code> (INSERT only, used by the dispatch commit path through <code>SET LOCAL ROLE</code> inside the same transaction). A <code>system</code> principal for <code>tick</code> with enumerated cross-org authority is a grant row, never RLS off (ADR-0008:26).</p>
+</section>
+
+<hr class="stitch">
+
+<section id="waves">
+  <h2><span class="num">6</span>The eleven waves</h2>
+  <p>Each code wave: a worktree from <code>factory</code>, exactly one Opus <code>implementer</code> dispatch, Codex diff review, Fable fold and <code>anti-slop</code> pass, <code>land-gate</code>, fast-forward onto <code>factory</code>. Size lines are estimates (changed lines, from the table in section 5 and the file set in D5); each wave's acceptance criteria are commands. Allowed adjacent artifacts for every wave: the wave's tests, its migration, the <code>MODULE.md</code> and <code>INDEX.md</code> lines it outdates, and <code>KERNEL.md</code>'s interface line for the module it builds. Anything else reads as unasked-for.</p>
+
+  <div class="phase now"><h3>Wave 0: scaffold and gates</h3>
+    <p class="maps">~350 lines (estimate) &middot; no product behaviour</p>
+    <ul class="plain">
+      <li><code>backend/pyproject.toml</code> (uv; Python 3.13; fastapi, pydantic-ai 2.x, sqlalchemy 2 async, psycopg 3, alembic, pytest + anyio, testcontainers, ruff with <code>pep8-naming</code>, pyright strict). Versions from Context7, recorded in the report.</li>
+      <li><code>backend/app/main.py</code>: <code>agentquilt serve | work | tick | seed</code> as an argparse entrypoint; each a stub that starts and exits.</li>
+      <li><code>compose.yaml</code> (Postgres 17 + the app image, one file) and <code>Dockerfile</code> (one image).</li>
+      <li>Alembic async env on psycopg 3; empty chain; the migration lint for singular tables and index prefixes (<code>naming-conventions.md:93</code>).</li>
+      <li>One smoke test opening a testcontainers Postgres and running <code>SELECT 1</code>.</li>
+      <li>Map files: <code>backend/INDEX.md</code>, <code>backend/app/kernel/KERNEL.md</code> (six interface headings, empty), <code>FROZEN.md</code> (the change protocol in five lines).</li>
+      <li>Factory wiring: <code>AGENTS.md</code> Gates section gets the three commands with their traps (ruff: a green with zero files checked; pyright: <code>0 errors</code> on an empty include; pytest: <code>no tests ran</code> exits 5, treat as red); <code>python.md</code> and <code>architecture.md</code> path globs become <code>backend/**</code>.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>uv run ruff check .</code>, <code>uv run pyright</code>, <code>uv run pytest</code> exit 0 with one test collected; <code>docker compose up -d db</code> then <code>uv run alembic upgrade head</code> exits 0 on an empty chain.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 1: migration 0001</h3>
+    <p class="maps">~450 lines (estimate, DDL only) &middot; no behaviour</p>
+    <ul class="plain">
+      <li>Migration <code>0001_create_spine</code>: every table in section 5, both schemas, RLS policies, the two roles, the ledger grants, the <code>step_queue</code> autovacuum settings. The only wave that writes DDL; no Python beyond the migration and its lint.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>alembic upgrade head</code>, <code>downgrade base</code>, <code>upgrade head</code> round-trip; the migration lint passes (singular tables, index prefixes); <code>psql</code> shows every table in section 5 with RLS enabled on each tenant-scoped one.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 2: <code>store</code> and tenancy</h3>
+    <p class="maps">~250 lines (estimate) &middot; clause 11 (read half)</p>
+    <ul class="plain">
+      <li><code>store.session(org_id, principal_id)</code>: an <code>AsyncSession</code> whose <code>after_begin</code> issues <code>SET LOCAL app.org_id</code> and <code>SET LOCAL app.principal_id</code>; no session without an org (fail closed).</li>
+      <li><code>agentquilt seed</code>: two orgs, two users, two tokens, one agent definition per org, printed to stdout.</li>
+      <li>Test kit start: <code>tests/kit.py</code> with <code>two_principals()</code> and an injected clock function (ADR-0017:37).</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>test_org_b_cannot_read_org_a_rows</code> and <code>test_unscoped_session_sees_nothing</code> pass.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 3: the ledger</h3>
+    <p class="maps">~300 lines (estimate) &middot; clauses 8 (persist half), 9 (write half)</p>
+    <ul class="plain">
+      <li>Models for <code>core.event</code>, <code>core.stream_head</code>, <code>core.action</code>, <code>core.operation_version</code>, <code>core.idempotency_key</code> (tables from wave 1).</li>
+      <li><code>declare.commit(...)</code>: the one function that appends an <code>operation_commit</code> event and its action in one transaction under <code>SET LOCAL ROLE agentquilt_ledger_writer</code>, with the <code>stream_head</code> <code>expected_version</code> check (creates take the INSERT path).</li>
+      <li>The internal kernel append seam for <code>run_journal</code>, <code>read_audit</code> and <code>denial</code> kinds (a second function, same role switch, no action).</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>test_app_role_cannot_insert_event</code> (permission denied), <code>test_commit_without_action_impossible</code> (the function has no such path; the DB constraint <code>action.event_id UNIQUE NOT NULL</code> plus a deferred FK from event to action for kind <code>operation_commit</code> refuses a lone event), <code>test_expected_version_mismatch_rolls_back</code>.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 4: the registry and dispatch</h3>
+    <p class="maps">~450 lines (estimate) &middot; clauses 3 (half), 4, 10</p>
+    <ul class="plain">
+      <li><code>@operation(name, mode, reversal, compensator=..., aggregate=(kind, args_path), stage=..., taint=None)</code> decorator over a typed-args function; the registry validates name shapes at import (<code>naming-conventions.md:96</code>) and content-addresses each declaration into <code>core.operation_version</code> at startup.</li>
+      <li><code>declare.dispatch(ctx, operation_name, args, expected_version, idempotency_key)</code>: the idempotency row is inserted first as a reservation (<code>action_id NULL</code>) and completed in the commit transaction; a replay that finds a completed row returns its action, a replay that finds an open reservation is the same parked call resuming (the key is <code>hash(run_id, step_no, tool_call_id)</code> and the queue lease allows one worker per step) and proceeds to the grant and approval checks; grant check via <code>identity.effective_grants</code> (wave 5; here a stub that reads <code>core.grant</code> directly); <code>denial</code> event on refusal; <code>commit</code> on success.</li>
+      <li>Derived: the Pydantic AI tool schema list for the run's tool set (used by wave 7's L5); the derived HTTP route waits for wave 9.</li>
+      <li><code>backend/app/OPERATIONS.md</code> generated from the registry by <code>agentquilt catalog</code>; a test fails when the file is stale.</li>
+      <li>One example operation for the tests only, <code>note.write</code> (reversible, compensator <code>note.remove</code>), declared by the test kit against a table the kit creates; the kernel ships no toy table.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>test_retry_returns_stored_action</code>, <code>test_denied_call_writes_denial_event</code>, <code>test_inline_declaration_name_shape_rejected</code>, catalog freshness test.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 5: <code>identity</code> and approvals</h3>
+    <p class="maps">~450 lines (estimate) &middot; clauses 4, 5, 6</p>
+    <ul class="plain">
+      <li><code>identity.resolve(token) → principal</code>; <code>identity.effective_grants(principal, agent_definition) → Ceiling</code> as a pure function over <code>core.grant</code> rows (no port, ADR-0026); the per-step definition from ADR-0015:18 (root ceiling ∩ narrowing state ∩ acting principal's grants), with narrowing state always empty in Phase 1.</li>
+      <li><code>args_hash</code> = SHA-256 over <code>"agentquilt.approval.v1" || operation_version_id || canonical JSON of args || target scope</code> (RFC 8785 canonical form via the library Context7 names).</li>
+      <li>Dispatch integration: level <code>asks_first</code> first tries the consume-once <code>UPDATE … WHERE org_id AND granted_to AND operation_version_id AND args_hash AND state='open' AND expires_at &gt; now() RETURNING</code> inside the commit transaction; one row → the call commits with the action naming the approval; zero rows and no <code>requested</code> or <code>rejected</code> row for this <code>(run_id, step_no, tool_call_id)</code> → insert an approval in state <code>requested</code> with the continuation identity and return <code>waiting_approval</code>; zero rows and a <code>rejected</code> or <code>expired</code> row → <code>denial(approval_unavailable)</code>, the reason becomes the tool result and the step continues. Expiry by <code>tick</code> re-enqueues the step exactly as a rejection does (wave 8). A grant-level <code>never</code> or a missing grant is <code>denial</code> with the same continuation: tool result, step continues.</li>
+      <li><code>governance.decide(approval_id, approve|reject, reason)</code> as a declared operation, the first module operation. Approve moves <code>requested → open</code> with <code>granted_by</code> = the deciding user; reject moves <code>requested → rejected</code> with the reason. Both act only on a <code>requested</code> row. In the same transaction it runs <code>UPDATE run SET state = 'queued' WHERE id AND state = 'waiting_approval' RETURNING id</code> and inserts the <code>step_queue</code> row for the same <code>(run_id, step_no)</code> only when that update returned a row; a cancelled run (whose approvals cancel already expired) is refused before either statement. The worker resumes from the journaled plan and replays the parked call under its original idempotency key: the open reservation resumes, the consume-once statement finds the <code>open</code> row (approve) and commits, or finds none and writes <code>denial(approval_unavailable)</code> with the rejection reason as the tool result (reject). No other continuation state exists.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>test_grant_checked_at_call_time</code>, <code>test_asks_first_opens_approval</code>, <code>test_approval_binds_to_digest</code> (changed args → denial), <code>test_approval_consumed_once</code> (two concurrent consumers, one wins), <code>test_expired_approval_denied</code> (clock injected).</p>
+  </div>
+
+  <div class="phase"><h3>Wave 6: the <code>ContextContributor</code> design round</h3>
+    <p class="maps">No code &middot; one <code>architect</code> dispatch (Fable), one Codex plan-mode round</p>
+    <ul class="plain">
+      <li>Per D2: the <code>architect</code> agent writes two or three genuinely different <code>ContextContributor</code> interfaces (minimal-surface, flexible, common-caller-optimised) against ADR-0027's two-contract candidate, judged against the two concrete callers that now exist (<code>context.assemble</code>'s needs from waves 3–5, and the <code>instructions</code> and <code>skills</code> adapters).</li>
+      <li>Fable adjudicates; ADR-0027 is amended in the vault with the winner and the rejected shapes; Codex reviews the amended ADR in plan mode.</li>
+    </ul>
+    <p><strong>Accept:</strong> ADR-0027 carries the chosen interface as Python protocol signatures and names both adapters; Codex PASS; the wave 7 brief quotes the signatures.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 7: <code>context</code> and <code>model</code></h3>
+    <p class="maps">~450 lines (estimate) &middot; clause 3, 12 (budget)</p>
+    <ul class="plain">
+      <li>Models for <code>core.tier</code>, <code>core.tier_binding</code>, <code>core.usage_record</code>, <code>core.context_manifest</code> (tables from wave 1).</li>
+      <li><code>kernel/ports/model_runner.py</code>: <code>ModelRunner.run(assembled_turn, tier) → result, usage, cache telemetry</code>; adapters <code>FakeModelRunner</code> (Pydantic AI <code>FunctionModel</code>, scripted per test, <code>ALLOW_MODEL_REQUESTS = False</code> in the kit) and <code>PydanticAIModelRunner</code>, provider-generic: the tier binding's <code>provider</code> string selects the Pydantic AI provider at runtime, nothing outside the adapter names one, and the seeded binding is <code>(openrouter, GLM 5.3 Flash, default effort)</code> per the 2026-08-27 decision, verified against Context7's OpenRouter provider docs at build. The mandatory cache position is recorded in the manifest for every provider and handed to the provider only where it has a cache API (Anthropic breakpoints, an OpenAI-compatible cache key), otherwise recorded and not sent. The smoke test runs on the OpenRouter key and is skipped without it.</li>
+      <li><code>kernel/ports/context_contributor.py</code> exactly as ADR-0027 now states it; adapters <code>instructions</code> (L1 org text, L2 soul, L3 personal profile as stored text) and <code>skills</code> (L6 directory, D1 bodies).</li>
+      <li><code>context.assemble(run, step) → AssembledTurn</code>: L0 (platform policy constant) · L1 · L2 · L3 · L4 (surface contract, from <code>surfaces</code>) · L5 (tool schemas from the registry, filtered by the ceiling) · L6, then D1 · D5 (mailbox drain, prior summaries none in Phase 1) · D6; <code>prefix_key</code> = hash of ordered <code>(slot, owner, layer_version)</code> + tool-schema hash + tier binding (ADR-0014:18); over-budget drop by declared priority; manifest row per call.</li>
+      <li>Hard token cap: <code>model.run</code> refuses when <code>usage + estimate &gt; run.budget_cap_tokens</code> with <code>denial(budget_exceeded)</code>; the worker then, in the same step transaction, sets <code>run.state = failed</code>, <code>failure_reason = budget_exceeded</code>, deletes the step's queue row and writes no checkpoint. The run is terminal; a person starts a new run. No new event kind, no new table.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>test_prefix_key_changes_with_layer_version</code>, <code>test_prefix_key_stable_across_turns</code>, <code>test_manifest_persisted_per_call</code>, <code>test_budget_cap_denies</code>, <code>test_fake_model_proposes_action</code>.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 8: <code>runs</code> and the <code>work</code> loop</h3>
+    <p class="maps">~500 lines (estimate) &middot; clauses 1, 7, 8, 11 (steer half), 12 (cancel)</p>
+    <ul class="plain">
+      <li>Models for <code>core.run</code>, <code>core.step_queue</code>, <code>core.mailbox_message</code>, <code>core.checkpoint</code> (tables from wave 1).</li>
+      <li><code>runs.create(ctx, agent_definition, skill_version) → run</code>: ceiling computed once and stored; <code>prefix_profile = personal</code>; PROD predicate (a PROD run binds only PROD-stage versions, ADR-0012).</li>
+      <li><code>runs.send(run_id, author, text)</code>: <code>seq</code> allocated under <code>SELECT … FOR UPDATE</code> on the run row; steering authorised through the grants path (org B is refused by RLS before it reaches the row).</li>
+      <li><code>runs.events(run_id, after_cursor)</code>: the run's ledger stream; <code>runs.cancel(run_id)</code> per D4, including the closing of open approvals.</li>
+      <li>The <code>work</code> role: claim via <code>SELECT … FOR UPDATE SKIP LOCKED</code> + lease; one step = drain mailbox → <code>context.assemble</code> → <code>model.run</code> → journal the tool-call plan with stable <code>tool_call_id</code>s → dispatch each call (idempotency key = hash(run_id, step_no, tool_call_id)) → checkpoint → re-enqueue, or park on <code>waiting_approval</code> (run state set, queue row deleted, the plan already journaled; wave 5's <code>decide</code> re-enqueues the same step); a version conflict writes <code>denial(version_conflict)</code> and a <code>conflict</code> mailbox message in one transaction, and the step continues with the conflict as that call's tool result; the run stays on its ordinary path. No model call inside the claim transaction.</li>
+      <li>The <code>tick</code> role: advisory-lock leader; reaps stale leases; expires approvals past <code>expires_at</code> with the same continuation as a rejection, in one transaction per approval: <code>requested → expired</code>, the guarded run-state update to <code>queued</code>, the <code>step_queue</code> insert when it returned a row; the resumed call then finds no <code>open</code> row and continues with <code>denial(approval_unavailable)</code>, reason <code>expired</code>, as its tool result.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>test_user_creates_run</code>, <code>test_action_runs_in_worker</code> (the dispatching process is <code>work</code>), <code>test_mailbox_seq_serialises_two_senders</code>, <code>test_crash_replay_no_duplicate</code> (lease expiry, second worker, same idempotency keys), <code>test_cancel_stops_at_step_boundary</code>, <code>test_org_b_cannot_steer</code>.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 9: the modules above and the web thread</h3>
+    <p class="maps">~500 lines (estimate) &middot; clauses 2, 8 (stream half), 9 (undo half)</p>
+    <ul class="plain">
+      <li><code>modules/skills</code>: models over <code>mod_skills</code> (tables from wave 1); <code>directory()</code> and <code>activate()</code>; the inline-declares-no-tools validator (ADR-0013's first negative fixture).</li>
+      <li><code>modules/governance</code>: <code>undo(action)</code> as a declared operation that runs the compensator in a new run and refuses <code>irreversible</code> with a reason; seed grants (agent may <code>asks_first</code> the one action).</li>
+      <li><code>modules/surfaces</code>: the web surface's L4 contract text and D6 intake; core-tool set = every PROD operation the agent's ceiling allows.</li>
+      <li><code>modules/memory</code>: the <code>instructions</code> contributor's data owner in Phase 1 (org text, soul, personal profile as rows in <code>core.agent_definition</code> and <code>core.user</code>); no <code>mod_memory</code> schema yet.</li>
+      <li><code>serve</code>: bearer auth dependency → org-scoped session; <code>POST /threads</code>, <code>POST /runs/{id}/messages</code>, <code>GET /runs/{id}/events</code> (SSE, <code>Last-Event-ID</code> = ledger cursor), <code>POST /approvals/{id}/decide</code>, <code>POST /actions/{id}/undo</code>, the last two derived from their declarations.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>test_run_binds_one_skill_version</code>, <code>test_inline_skill_with_operations_rejected</code>, <code>test_events_stream_and_replay</code> (httpx async client, reconnect with <code>Last-Event-ID</code>), <code>test_action_written_and_undoable</code>, <code>test_irreversible_undo_refused_with_reason</code>.</p>
+  </div>
+
+  <div class="phase"><h3>Wave 10: the acceptance suite and the map</h3>
+    <p class="maps">~400 lines (estimate) &middot; all twelve clauses in one file, end to end</p>
+    <ul class="plain">
+      <li><code>backend/tests/acceptance/test_walking_skeleton.py</code>: the twelve tests of section 1 through the HTTP interface with <code>FakeModelRunner</code>; one non-blocking real-provider smoke test, skipped without a key.</li>
+      <li><code>KERNEL.md</code> filled: the six interfaces on one page; each kernel module's <code>MODULE.md</code>; <code>OPERATIONS.md</code> current; <code>docs/model-assumption-ledger.md</code> with its first two entries (prefix/envelope split; index-first skill directory) and their deletion triggers.</li>
+      <li><code>compose.yaml</code> proven: <code>docker compose up</code> then the curl sequence from section 1, recorded in the report as evidence.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>uv run pytest backend/tests/acceptance</code> 12 passed, 1 skipped; the curl sequence's output pasted in the report; <code>land-gate</code> green; then <code>scrub-gate</code> and fast-forward to <code>main</code>.</p>
+  </div>
+</section>
+
+<hr class="stitch">
+
+<section id="leverage">
+  <h2><span class="num">7</span>Reuse before create</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>New part</th><th>Closest existing part</th><th>Why it does not fit, or how it is extended</th></tr></thead>
+    <tbody>
+      <tr><td>Fake model adapter</td><td>Pydantic AI <code>FunctionModel</code></td><td>Used as is; the adapter is the thin <code>ModelRunner</code> implementation over it, not a second fake</td></tr>
+      <tr><td>Real model adapter</td><td>Pydantic AI <code>Agent</code> + provider models, <code>CachePoint</code></td><td>Used as is behind the port; the tier binding picks the provider string</td></tr>
+      <tr><td>Tenant session</td><td>SQLAlchemy <code>AsyncSession</code> + <code>after_begin</code> event</td><td>Extended with two <code>SET LOCAL</code>s; no repository or unit-of-work layer (python.md)</td></tr>
+      <tr><td>Queue</td><td>Postgres <code>SKIP LOCKED</code></td><td>Used as is; no Celery, no Temporal (ADR-0005)</td></tr>
+      <tr><td>SSE</td><td>Starlette <code>StreamingResponse</code></td><td>Used as is; the cursor is the ledger position</td></tr>
+      <tr><td>Canonical JSON for <code>args_hash</code></td><td>An RFC 8785 library named by Context7 at build time</td><td>A hand-written canonicaliser is the alternative and is worse</td></tr>
+      <tr><td>Test kit</td><td>testcontainers-postgres; anyio</td><td>The kit adds only <code>two_principals()</code>, the clock function and the scripted runner</td></tr>
+      <tr><td>Plan page</td><td>The previous plan page</td><td>Its style block and decision-card markup are reused verbatim</td></tr>
+      <tr><td>Vault <code>50-bootstrap/</code></td><td>Templates and runbooks only</td><td>Nothing there is code; nothing to reuse for the spine</td></tr>
+    </tbody>
+  </table></div>
+  <p>Ports created: two (<code>ModelRunner</code>, <code>ContextContributor</code>), each with its two named adapters in this phase. Not created: <code>Sandbox</code> (premise 11), <code>Blob</code> (no files in Phase 1), <code>OperationTarget</code> (its second adapter ships with the CRM slice; one adapter is no seam).</p>
+</section>
+
+<hr class="stitch">
+
+<section id="untouched">
+  <h2><span class="num">8</span>What is working well and is not touched</h2>
+  <ul class="plain">
+    <li>The factory: <code>.claude/agents/</code>, skills, hooks, <code>REVIEW.md</code>, <code>settings.json</code>. Only the two rule-file path globs and the AGENTS.md Gates section change, in wave 0.</li>
+    <li><code>README.md</code> (the owner's text), <code>docs/provenance.md</code>, <code>LICENSE</code>, <code>NOTICE</code>, <code>TRADEMARK.md</code>.</li>
+    <li>The vault's architecture documents. The only vault edits this plan causes: ADR-0027 amended in wave 6 (D2), the decision-log lines for D1–D6 on approval, and the open-questions trigger line for reversibility semantics (D3).</li>
+    <li>Nothing under <code>frontend/</code> is created; the design handoff stays in <code>$V/20-specs/design-handoff/</code> for the Phase 2 plan.</li>
+  </ul>
+</section>
+
+<hr class="stitch">
+
+<section id="risks">
+  <h2><span class="num">9</span>Risks and numbers</h2>
+  <ul class="plain">
+    <li><strong>Size:</strong> ten code waves and one design wave, ~4,000 changed lines in total (estimate, the sum of the per-wave estimates; firmed up after wave 3, which will show whether the 450-line estimates hold).</li>
+    <li><strong>Turn ceiling:</strong> 24 turns per dispatch is the 2026-08-30 starting value; if wave 2 or 3 reaches it, the wave is split, and the value is recalibrated after three code waves as the decision says.</li>
+    <li><strong>Codex rounds:</strong> cap four per wave (skill rule); an expanding frontier sends the wave back to this page, not to another fold.</li>
+    <li><strong>Non-retrofittable miss:</strong> a column found missing after wave 10 is an ordinary additive migration before the first external install (<code>release-and-environments.md:12</code>); the cost is nil now and grows only after Phase 3.</li>
+    <li><strong>Premise 11 (no Sandbox):</strong> if Codex or you read "constrained worker" as requiring the port, the answer is the local-subprocess adapter plus a container adapter in a twelfth wave; nothing in waves 0–10 changes.</li>
+    <li><strong>Hard cap on this plan:</strong> at most three plan-gate dispatches (this is the first); if Codex FAILs four rounds, the plan returns to you with the findings, not a fifth round.</li>
+  </ul>
+</section>
+
+<hr class="stitch">
+
+<section id="next">
+  <h2><span class="num">10</span>What happens when you say go</h2>
+  <ol>
+    <li>D2–D7 go to the decision log as dated lines (D1 is there already); ADR-0027 and the reversibility open question get their pointers; your web-access idea (which pages an agent may fetch, a central allow and deny list) is filed in open questions with the trigger "the first declared <code>web_fetch</code> operation", the same trigger ADR-0015 gives the taint ratchet.</li>
+    <li><code>curate-fold</code> runs once (it has never run: 11 inbox entries, 12 suggestions), since the wave loop starts with it.</li>
+    <li>Wave 0 worktree from <code>factory</code>; implementer brief = this page's wave 0 block plus the premises table; Codex on the diff; fold; land.</li>
+    <li>This page is exported with <code>lavish-axi export</code> and crosses to <code>docs/plans/phase-1-spine/</code> through <code>scrub-gate</code>, as the first product plan in the public folder.</li>
+  </ol>
+</section>
+
+</main>
+</body>
+</html>
