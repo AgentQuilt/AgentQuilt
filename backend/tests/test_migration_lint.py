@@ -1,0 +1,18 @@
+from lint import check_migrations, check_source
+
+BAD = """
+op.create_table("runs")
+op.create_index("run_org_idx", "run", ["org_id"])
+op.create_unique_constraint("uq_run_key", "run", ["org_id"])
+"""
+
+
+def test_migration_chain_names_are_clean() -> None:
+    assert check_migrations() == []
+
+
+def test_lint_catches_plural_tables_and_missing_prefixes() -> None:
+    problems = check_source("0001_bad.py", BAD)
+    assert len(problems) == 2
+    assert "plural" in problems[0]
+    assert "'ix_' prefix" in problems[1]

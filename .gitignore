@@ -22,3 +22,8 @@ temp/
 
 # Lavish review artifacts and session state (local review surface, never committed)
 .lavish/
+
+# Python tooling: virtualenv and tool caches
+backend/.venv/
+.pytest_cache/
+.ruff_cache/
