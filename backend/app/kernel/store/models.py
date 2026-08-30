@@ -35,7 +35,8 @@ class Base(DeclarativeBase):
     metadata = MetaData(schema="core")
 
 
-def _created_at() -> Mapped[datetime]:
+def created_at_column() -> Mapped[datetime]:
+    """The one `created_at` mapping; model files import it, never re-declare it."""
     return mapped_column(TIMESTAMP(timezone=True), server_default=NOW)
 
 
@@ -44,7 +45,7 @@ class Org(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
 
 
 class User(Base):
@@ -53,7 +54,7 @@ class User(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = mapped_column(ForeignKey("core.org.id", name="fk_user_org"))
     display_name: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
 
 
 class Principal(Base):
@@ -74,7 +75,7 @@ class Principal(Base):
     user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("core.user.id", name="fk_principal_user")
     )
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
 
 
 class AgentDefinition(Base):
@@ -95,7 +96,7 @@ class AgentDefinition(Base):
     tier: Mapped[str] = mapped_column(Text)
     budget_cap_tokens: Mapped[int] = mapped_column(Integer)
     memory_scope: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
 
 
 class UserToken(Base):
@@ -110,7 +111,7 @@ class UserToken(Base):
         ForeignKey("core.org.id", name="fk_user_token_org")
     )
     token_hash: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
     revoked_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
 
 
@@ -171,7 +172,7 @@ class Run(Base):
     worker_heartbeat_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True)
     )
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
     updated_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=NOW
     )
@@ -216,4 +217,4 @@ class SkillVersion(Base):
     operations: Mapped[Json] = mapped_column(JSONB)
     stage: Mapped[str] = mapped_column(Text)
     body: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()

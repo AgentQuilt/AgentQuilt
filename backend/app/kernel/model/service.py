@@ -65,7 +65,9 @@ async def run(
     # ADR-0014's mandatory position is where the prefix ends. It is recorded for
     # every provider and handed only to one with a cache API, which the generic
     # request path is not, so this row is the only place it lands.
-    manifest.cache_positions = {"prefix_end_tokens": _prefix_tokens(assembled)}
+    manifest.cache_positions = {
+        "prefix_end_tokens": sum(tokens(layer.body) for layer in assembled.prefix)
+    }
     manifest.telemetry = completion.cache
     session.add(
         UsageRecord(
@@ -81,10 +83,6 @@ async def run(
     )
     await session.flush()
     return Answered(completion)
-
-
-def _prefix_tokens(assembled: AssembledTurn) -> int:
-    return sum(tokens(layer.body) for layer in assembled.prefix)
 
 
 async def _spent(session: AsyncSession, run_id: UUID) -> int:

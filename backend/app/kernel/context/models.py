@@ -9,18 +9,11 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, TIMESTAMP, Text, text
+from sqlalchemy import ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.kernel.store.models import Base, Json
-
-NOW = text("now()")
-
-
-def _created_at() -> Mapped[datetime]:
-    return mapped_column(TIMESTAMP(timezone=True), server_default=NOW)
-
+from app.kernel.store.models import Base, Json, created_at_column
 
 class ContextManifest(Base):
     """One row per assembled turn: what went into the prompt and what it cost."""
@@ -41,4 +34,4 @@ class ContextManifest(Base):
     cache_positions: Mapped[Json] = mapped_column(JSONB)
     telemetry: Mapped[Json] = mapped_column(JSONB)
     effective_scope: Mapped[Json] = mapped_column(JSONB)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()

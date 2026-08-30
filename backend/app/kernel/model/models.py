@@ -10,17 +10,10 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import ForeignKey, Integer, TIMESTAMP, Text, text
+from sqlalchemy import ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.kernel.store.models import Base
-
-NOW = text("now()")
-
-
-def _created_at() -> Mapped[datetime]:
-    return mapped_column(TIMESTAMP(timezone=True), server_default=NOW)
-
+from app.kernel.store.models import Base, created_at_column
 
 class TierBinding(Base):
     """What a tier resolves to right now: a provider, a model and an effort.
@@ -40,7 +33,7 @@ class TierBinding(Base):
     # Not every provider takes an effort setting.
     effort: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
 
 
 class UsageRecord(Base):
@@ -62,4 +55,4 @@ class UsageRecord(Base):
     input_tokens: Mapped[int] = mapped_column(Integer)
     output_tokens: Mapped[int] = mapped_column(Integer)
     cached_tokens: Mapped[int] = mapped_column(Integer)
-    created_at: Mapped[datetime] = _created_at()
+    created_at: Mapped[datetime] = created_at_column()
