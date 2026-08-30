@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.kernel.context.contributors import (
@@ -26,6 +27,7 @@ from app.kernel.context.models import ContextManifest
 from app.kernel.declare.models import Json
 from app.kernel.declare.registry import Registry
 from app.kernel.identity.service import effective_grants
+from app.kernel.model.models import TierBinding
 from app.kernel.ports.context_contributor import (
     EnvelopeContributor,
     PrefixContributor,
@@ -34,7 +36,8 @@ from app.kernel.ports.context_contributor import (
     Slice,
     Turn,
 )
-from app.kernel.store.models import Run
+from app.kernel.ports.model_runner import Binding
+from app.kernel.store.models import AgentDefinition, Run
 
 # The one surface Phase 1 serves; `surfaces` (wave 9) replaces both this and the
 # L4 text below with a registered contributor.
@@ -51,23 +54,23 @@ _ENVELOPE_ORDER = ("D1", "D3", "D4", "D5", "D6")
 _USABLE = ("may_use", "asks_first")
 
 _skills = SkillsContributor()
-_PREFIX: tuple[PrefixContributor[Any], ...] = (InstructionsContributor(), _skills)
-_ENVELOPE: tuple[EnvelopeContributor, ...] = (_skills,)
+PREFIX_CONTRIBUTORS: tuple[PrefixContributor[Any], ...] = (
+    InstructionsContributor(),
+    _skills,
+)
+ENVELOPE_CONTRIBUTORS: tuple[EnvelopeContributor, ...] = (_skills,)
 
 
 @dataclass(frozen=True, slots=True)
 class Call:
     """What the caller knows and the run row does not carry.
 
-    The tier binding's three terms are part of prefix identity (ADR-0014) and
-    `model` owns the row they come from; `budget_tokens` is the prompt budget the
-    envelope is dropped against; `intake` is this turn's message, until `surfaces`
-    owns D6.
+    `budget_tokens` is the prompt budget the envelope is dropped against;
+    `intake` is this turn's message, until `surfaces` owns D6. The tier binding
+    is not here on purpose: assembly resolves it from the run's tier, so the key
+    and the later provider call cannot disagree about it.
     """
 
-    provider: str
-    model: str
-    effort: str | None
     budget_tokens: int
     intake: str
 
@@ -92,6 +95,8 @@ class AssembledTurn:
     prefix_key: str
     token_cost: int
     manifest_id: UUID
+    binding: Binding
+    tier: str
 
 
 def tokens(body: str) -> int:
@@ -115,6 +120,7 @@ async def assemble(
         surface=SURFACE,
     )
     grants = await effective_grants(session, scope.principal_id)
+    bound = await _binding(session, run.agent_definition_id)
     prefix = await _prefix(session, scope, grants, registry)
     prefix_tokens = sum(tokens(layer.body) for layer in prefix)
     turn = Turn(run_id=run.id, step_no=step_no)
@@ -129,7 +135,7 @@ async def assemble(
         org_id=UUID(session.info["org"]),
         run_id=run.id,
         step_no=step_no,
-        prefix_key=_prefix_key(prefix, call),
+        prefix_key=_prefix_key(prefix, bound),
         layers=_manifest_layers(prefix, kept, dropped),
         token_cost=token_cost,
         # ADR-0014's mandatory position and the provider's cache telemetry are
@@ -146,6 +152,8 @@ async def assemble(
         prefix_key=manifest.prefix_key,
         token_cost=token_cost,
         manifest_id=manifest.id,
+        binding=Binding(bound.provider, bound.model, bound.effort),
+        tier=bound.tier,
     )
 
 
@@ -165,13 +173,44 @@ async def _prefix(
         ),
         _tools(registry, grants),
     ]
-    for contributor in _PREFIX:
+    seen = {layer.slot: layer.owner for layer in layers}
+    for contributor in PREFIX_CONTRIBUTORS:
         source = await contributor.fetch(session, scope)
-        layers += [
-            PrefixLayer(layer.slot, contributor.owner, layer.version, layer.body)
-            for layer in contributor.layers(source)
-        ]
+        for layer in contributor.layers(source):
+            _claim(seen, layer.slot, contributor.owner, contributor.prefix_slots)
+            layers.append(
+                PrefixLayer(layer.slot, contributor.owner, layer.version, layer.body)
+            )
     return tuple(sorted(layers, key=lambda layer: _PREFIX_ORDER.index(layer.slot)))
+
+
+def _claim(
+    seen: dict[str, str], slot: str, owner: str, declared: tuple[str, ...]
+) -> None:
+    """ADR-0027: a layer or slice lands only on a slot its contributor declares
+    and no one else holds. The kernel's own slots are seeded into `seen`."""
+    if slot not in declared:
+        raise ValueError(f"'{owner}' returned slot {slot}, which it never declared")
+    if slot in seen and seen[slot] != owner:
+        raise ValueError(f"slot {slot} is owned by '{seen[slot]}', not '{owner}'")
+    if slot in seen:
+        raise ValueError(f"'{owner}' returned slot {slot} twice")
+    seen[slot] = owner
+
+
+async def _binding(session: AsyncSession, agent_definition_id: UUID) -> TierBinding:
+    """What the agent definition's tier resolves to now: the highest version.
+    Resolved here and recorded on the turn, so `model.run` answers under exactly
+    the binding the prefix key was computed with (ADR-0014)."""
+    return (
+        await session.scalars(
+            select(TierBinding)
+            .join(AgentDefinition, AgentDefinition.tier == TierBinding.tier)
+            .where(AgentDefinition.id == agent_definition_id)
+            .order_by(TierBinding.version.desc())
+            .limit(1)
+        )
+    ).one()
 
 
 def _tools(registry: Registry, grants: Mapping[str, str]) -> PrefixLayer:
@@ -192,14 +231,14 @@ def _tools(registry: Registry, grants: Mapping[str, str]) -> PrefixLayer:
     return PrefixLayer("L5", _KERNEL, version("tools", body), body)
 
 
-def _prefix_key(prefix: tuple[PrefixLayer, ...], call: Call) -> str:
+def _prefix_key(prefix: tuple[PrefixLayer, ...], bound: TierBinding) -> str:
     """ADR-0014: the ordered (slot, owner, version) sequence plus the tier binding.
 
     Effort is rendered into the prompt by both providers, so a binding that
     differs in any of the three is a different prefix and must not share a key.
     """
     terms = [f"{layer.slot}|{layer.owner}|{layer.version}" for layer in prefix]
-    terms += [call.provider, call.model, call.effort or ""]
+    terms += [bound.provider, bound.model, bound.effort or ""]
     return hashlib.sha256("\n".join(terms).encode()).hexdigest()
 
 
@@ -211,8 +250,21 @@ async def _envelope(
     slices = [
         Slice(slot="D6", body=intake, provenance=f"{SURFACE}:intake", priority=0)
     ]
-    for contributor in _ENVELOPE:
-        slices += await contributor.slices(session, scope, turn)
+    owners = {"D6": _KERNEL}
+    for contributor in ENVELOPE_CONTRIBUTORS:
+        for part in await contributor.slices(session, scope, turn):
+            if part.slot not in contributor.envelope_slots:
+                raise ValueError(
+                    f"'{contributor.owner}' returned slot {part.slot}, "
+                    "which it never declared"
+                )
+            claimed = owners.setdefault(part.slot, contributor.owner)
+            if claimed != contributor.owner:
+                raise ValueError(
+                    f"slot {part.slot} is owned by '{claimed}', "
+                    f"not '{contributor.owner}'"
+                )
+            slices.append(part)
     return tuple(slices)
 
 

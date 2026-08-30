@@ -9,10 +9,12 @@ that reaches one.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from app.kernel.context.service import AssembledTurn
 from app.kernel.store.models import Json
+
+if TYPE_CHECKING:
+    from app.kernel.context.service import AssembledTurn
 
 
 @dataclass(frozen=True, slots=True)

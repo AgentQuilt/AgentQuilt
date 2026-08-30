@@ -17,9 +17,9 @@ from app.kernel.context.models import ContextManifest
 from app.kernel.context.service import AssembledTurn, tokens
 from app.kernel.declare.ledger import Append, append
 from app.kernel.declare.models import Event
-from app.kernel.model.models import TierBinding, UsageRecord
-from app.kernel.ports.model_runner import Binding, Completion, ModelRunner
-from app.kernel.store.models import AgentDefinition, Json, Run
+from app.kernel.model.models import UsageRecord
+from app.kernel.ports.model_runner import Completion, ModelRunner
+from app.kernel.store.models import Json, Run
 
 BUDGET_EXCEEDED = "budget_exceeded"
 
@@ -61,10 +61,7 @@ async def run(
         }
         return Refused(BUDGET_EXCEEDED, await _deny(session, manifest, payload))
 
-    bound = await _binding(session, run_row.agent_definition_id)
-    completion = await runner.run(
-        assembled, Binding(bound.provider, bound.model, bound.effort)
-    )
+    completion = await runner.run(assembled, assembled.binding)
     # ADR-0014's mandatory position is where the prefix ends. It is recorded for
     # every provider and handed only to one with a cache API, which the generic
     # request path is not, so this row is the only place it lands.
@@ -76,7 +73,7 @@ async def run(
             org_id=UUID(session.info["org"]),
             run_id=run_row.id,
             step_no=manifest.step_no,
-            tier=bound.tier,
+            tier=assembled.tier,
             input_tokens=completion.usage.input_tokens,
             output_tokens=completion.usage.output_tokens,
             cached_tokens=completion.usage.cached_tokens,
@@ -84,19 +81,6 @@ async def run(
     )
     await session.flush()
     return Answered(completion)
-
-
-async def _binding(session: AsyncSession, agent_definition_id: UUID) -> TierBinding:
-    """What the agent definition's tier resolves to now: the highest version."""
-    return (
-        await session.scalars(
-            select(TierBinding)
-            .join(AgentDefinition, AgentDefinition.tier == TierBinding.tier)
-            .where(AgentDefinition.id == agent_definition_id)
-            .order_by(TierBinding.version.desc())
-            .limit(1)
-        )
-    ).one()
 
 
 def _prefix_tokens(assembled: AssembledTurn) -> int:

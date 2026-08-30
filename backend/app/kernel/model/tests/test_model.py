@@ -43,9 +43,6 @@ OPERATION = "note.write_note"
 NOTE = "We land on the higher price."
 KEY_VAR = "OPENROUTER_API_KEY"
 CALL = Call(
-    provider="openrouter",
-    model="z-ai/glm-5.3-flash",
-    effort=None,
     budget_tokens=200_000,
     intake="Write the note about where we landed on pricing.",
 )

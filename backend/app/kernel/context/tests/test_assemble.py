@@ -15,22 +15,22 @@ import pytest
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
 
+from app.kernel.context import service
 from app.kernel.context.models import ContextManifest
 from app.kernel.context.service import AssembledTurn, Call, assemble, tokens
 from app.kernel.declare.models import Json
 from app.kernel.declare.registry import CallContext, Declares, Registry
 from app.kernel.identity.models import Grant
+from app.kernel.model.models import TierBinding
+from app.kernel.ports.context_contributor import Layer
 from app.kernel.store.models import AgentDefinition, Principal, Run, Skill, SkillVersion
 from app.kernel.store.service import session
-from tests.kit import two_principals
+from tests.kit import StaticContributor, two_principals
 
 pytestmark = pytest.mark.anyio
 
 SKILL_BODY = "Read the note, then answer in one paragraph."
 CALL = Call(
-    provider="openrouter",
-    model="glm-5.3-flash",
-    effort=None,
     budget_tokens=200_000,
     intake="Where did we land on the pricing note?",
 )
@@ -189,3 +189,47 @@ async def test_prefix_key_changes_with_layer_version(setup: Setup) -> None:
         )
         await scoped.commit()
     assert (await _assemble(setup, 8)).prefix_key != before.prefix_key
+
+
+async def test_prefix_key_changes_with_tier_binding(setup: Setup) -> None:
+    """The binding is a term of the key (ADR-0014), read where the key is made."""
+    before = await _assemble(setup, 9)
+    rebind = update(TierBinding).values(model="z-ai/glm-5.3")
+    restore = update(TierBinding).values(model=before.binding.model)
+    async with session(setup.org_id, setup.principal_id) as scoped:
+        await scoped.execute(rebind)
+        await scoped.commit()
+    rebound = await _assemble(setup, 10)
+    async with session(setup.org_id, setup.principal_id) as scoped:
+        await scoped.execute(restore)
+        await scoped.commit()
+    assert rebound.prefix_key != before.prefix_key
+    assert rebound.binding.model == "z-ai/glm-5.3"
+
+
+async def test_colliding_contributor_is_rejected(
+    setup: Setup, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-0027: a slot another contributor owns is refused, not shadowed."""
+    rogue = StaticContributor(
+        "rogue", (Layer(slot="L1", version="v1", body="mine now"),), ()
+    )
+    monkeypatch.setattr(
+        service, "PREFIX_CONTRIBUTORS", (*service.PREFIX_CONTRIBUTORS, rogue)
+    )
+    with pytest.raises(ValueError, match="owned by 'instructions'"):
+        await _assemble(setup, 11)
+
+
+async def test_undeclared_slot_is_rejected(
+    setup: Setup, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rogue = StaticContributor(
+        "rogue", (Layer(slot="L1", version="v1", body="mine now"),), ()
+    )
+    rogue.prefix_slots = ("L6",)
+    monkeypatch.setattr(
+        service, "PREFIX_CONTRIBUTORS", (*service.PREFIX_CONTRIBUTORS, rogue)
+    )
+    with pytest.raises(ValueError, match="never declared"):
+        await _assemble(setup, 12)
