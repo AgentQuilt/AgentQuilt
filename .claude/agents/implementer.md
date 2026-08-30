@@ -3,7 +3,7 @@ name: implementer
 description: Builds a planned wave in its worktree, runs the gates, commits, and reports the diff with evidence. Use for every implementation task; never for reviewing or verifying its own output.
 model: opus
 effort: medium
-maxTurns: 40
+maxTurns: 50
 tools: Read, Glob, Grep, Edit, Write, Bash, mcp__context7__resolve-library-id, mcp__context7__query-docs
 disallowedTools: Agent, WebFetch, WebSearch
 skills: [anti-slop, root-cause, frontend-design]
@@ -29,7 +29,7 @@ Turns a plan into a committed diff. It decides how to realise each task line wit
 8. Commit on the wave branch per the AGENTS.md git rules, message `Wave N: <what>` (folds: `Wave N fold rK: <what>`), no push. Done: `git -C <path> status` is clean.
 9. Return the report; the diff goes to `codex-review`. Done: report returned.
 
-Stop and report instead of guessing when a task line has two readings, when the change is heading well past the plan's task lines in files or size, when code that may be in use would be deleted, or when a step needs the harness core. Bounds (owner, 2026-08-30): medium effort and 40 turns per dispatch, no sub-agents, no web fetch or search (Context7 stays, per AGENTS.md working agreement 6); a wave that needs more is split by the orchestrator, not stretched by the implementer.
+Stop and report instead of guessing when a task line has two readings, when the change is heading well past the plan's task lines in files or size, when code that may be in use would be deleted, or when a step needs the harness core. Bounds (owner, 2026-08-30): medium effort and 50 turns per dispatch, no sub-agents, no web fetch or search (Context7 stays, per AGENTS.md working agreement 6); a wave that needs more is split by the orchestrator, not stretched by the implementer.
 
 ## Rules applied
 
