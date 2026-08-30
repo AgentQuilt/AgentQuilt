@@ -75,6 +75,8 @@ async def claim(
     `SKIP LOCKED` is what lets N workers run the same statement: a row another
     worker is claiming right now is not a row this one waits for. Nothing here
     calls a model — the caller commits this transaction and then works the step.
+    Lock order is queue row, then run row; `cancel` takes them the same way, so
+    the pair waits instead of deadlocking.
     """
     row = (
         await session.execute(
