@@ -16,12 +16,12 @@ from uuid import UUID, uuid4
 import pytest
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionDef
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, select, text, update
 
 from app.kernel.declare.models import Action, Event
 from app.kernel.declare.registry import CallContext, Registry
 from app.kernel.declare.service import Call as ToolCall, Committed, dispatch
-from app.kernel.identity.models import Approval
+from app.kernel.identity.models import Approval, Grant
 from app.kernel.runs.models import Checkpoint, StepQueue
 from app.kernel.runs.service import cancel, create, events, send
 from app.kernel.runs.tick import EXPIRED, Pass, tick_once
@@ -268,6 +268,39 @@ async def test_cancel_mid_step_is_not_resurrected(setup: Setup) -> None:
                 .select_from(leftover)
                 .where(leftover.run_id == run_id)
             ) == 0
+
+
+async def test_grant_widened_after_create_is_capped_by_the_ceiling(
+    setup: Setup,
+) -> None:
+    """ADR-0015: the ceiling is fixed at create. REMOVE was asks_first then, so
+    a later may_use grant still parks the call instead of committing it."""
+    run_id = await _run(setup)
+    note_id = uuid4()
+
+    def _remove_level(level: str):
+        return (
+            update(Grant)
+            .where(
+                Grant.principal_id == setup.scope[1],
+                Grant.operation_name == REMOVE,
+            )
+            .values(level=level)
+        )
+
+    async with session(*setup.scope) as scoped:
+        await scoped.execute(_remove_level("may_use"))
+        await scoped.commit()
+    try:
+        state = await _work(setup, _proposes(REMOVE, note_id), FakeClock())
+        assert state == "waiting_approval"
+    finally:
+        async with session(*setup.scope) as scoped:
+            # The park left a requested approval; cancel expires it so the
+            # expiry test's Pass count stays its own.
+            assert await cancel(scoped, run_id) is True
+            await scoped.execute(_remove_level("asks_first"))
+            await scoped.commit()
 
 
 async def test_expired_approval_requeues_step(setup: Setup) -> None:

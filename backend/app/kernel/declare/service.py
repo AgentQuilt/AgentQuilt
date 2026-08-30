@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
+from typing import cast
 from datetime import datetime
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
@@ -105,7 +106,7 @@ async def dispatch(ctx: CallContext, call: Call) -> Outcome:
         return Replayed(stored)
 
     grants = await effective_grants(ctx.session, ctx.principal_id)
-    level = grants.get(call.operation_name)
+    level = _under_ceiling(ctx, call.operation_name, grants.get(call.operation_name))
     if level not in _GRANTED:
         return await _deny(ctx, call, _REFUSAL[level], {"grant_level": level})
 
@@ -118,6 +119,28 @@ async def dispatch(ctx: CallContext, call: Call) -> Outcome:
     if op.mode == "read":
         return await _read(ctx, call, op, args, level)
     return await _write(ctx, call, op, args, level)
+
+
+def _under_ceiling(ctx: CallContext, name: str, level: str | None) -> str | None:
+    """ADR-0015: effective grants for a step = run ceiling ∩ narrowing state
+    (always empty in Phase 1) ∩ the acting principal's grants.
+
+    The worker hands dispatch the ceiling stored when its run was created, so a
+    grant added or widened since never widens a live run; where both sides grant
+    the operation the stricter level wins. A call from outside any run carries
+    no ceiling and is the acting principal's grants alone.
+    """
+    if ctx.capability_ceiling is None:
+        return level
+    operations = ctx.capability_ceiling.get("operations")
+    bound = (
+        cast("Json", operations).get(name) if isinstance(operations, dict) else None
+    )
+    if level is None or not isinstance(bound, str):
+        return None
+    if "never" in (level, bound):
+        return "never"
+    return "asks_first" if "asks_first" in (level, bound) else level
 
 
 async def _write(

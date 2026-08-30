@@ -49,6 +49,9 @@ class CallContext:
     run_id: UUID | None
     step_no: int | None
     registry: Registry
+    # ADR-0015: the run's stored ceiling, handed in by the worker; a call made
+    # from outside any run carries none.
+    capability_ceiling: Json | None = None
     # The only wall clock dispatch reads: an approval's expiry is compared to
     # this, so a test drives expiry instead of waiting three days for it.
     clock: Callable[[], datetime] = _now

@@ -159,6 +159,7 @@ async def step(
         step_no=claimed.step_no,
         registry=registry,
         clock=clock,
+        capability_ceiling=run.capability_ceiling,
     )
     results, parked = await _dispatch_all(context, run.id, answered.completion.calls)
     return await _settle(

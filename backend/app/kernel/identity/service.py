@@ -50,11 +50,11 @@ async def resolve(session: AsyncSession, token: str) -> Principal | None:
 async def effective_grants(
     session: AsyncSession, principal_id: UUID
 ) -> Mapping[str, str]:
-    """The step's grants: root ceiling ∩ narrowing state ∩ acting principal's.
+    """The acting principal's own grants, one term of ADR-0015's intersection.
 
-    ADR-0015:18 states that intersection. In Phase 1 the narrowing state is always
-    empty and the acting principal is the originator, so this one mapping of the
-    principal's own `core.grant` rows is the whole of it.
+    The full formula — root ceiling ∩ narrowing state (always empty in Phase 1)
+    ∩ these grants — is applied at dispatch, which intersects this mapping with
+    the run's stored ceiling for any call made inside a run.
     """
     rows = await session.execute(
         select(Grant.operation_name, Grant.level).where(
