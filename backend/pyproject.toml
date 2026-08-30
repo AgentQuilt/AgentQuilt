@@ -44,7 +44,7 @@ max-positional-args = 3
 [tool.ruff.lint.pep8-naming]
 # The ledger's conflict is named for the glossary word, not for the -Error suffix
 # N818 asks for; the vocabulary rule outranks the suffix convention.
-ignore-names = ["VersionConflict"]
+ignore-names = ["VersionConflictError"]
 
 [tool.ruff.lint.per-file-ignores]
 # Hooks are best-effort by design: a raising hook kills the turn.

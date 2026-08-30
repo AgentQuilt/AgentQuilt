@@ -62,7 +62,7 @@ class Append:
 
 
 @dataclass(frozen=True)
-class VersionConflict(Exception):
+class VersionConflictError(Exception):
     """`expected_version` did not match the aggregate's stream head."""
 
     expected: int
@@ -94,7 +94,7 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
     )
     actual = head.version if head is not None else 0
     if actual != request.expected_version:
-        raise VersionConflict(request.expected_version, actual)
+        raise VersionConflictError(request.expected_version, actual)
 
     action_id = uuid4()
     event = Event(

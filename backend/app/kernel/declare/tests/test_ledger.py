@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import Select, func, select, text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from app.kernel.declare.ledger import Append, Commit, VersionConflict, append, commit
+from app.kernel.declare.ledger import Append, Commit, VersionConflictError, append, commit
 from app.kernel.declare.models import Event, OperationVersion, StreamHead
 from app.kernel.store.service import session
 from tests.kit import Scope, two_principals
@@ -124,9 +124,9 @@ async def test_expected_version_mismatch_rolls_back(
         await scoped.commit()
 
     async with session(org, principal) as scoped:
-        with pytest.raises(VersionConflict) as conflict:
+        with pytest.raises(VersionConflictError) as conflict:
             await commit(scoped, _request(principal, aggregate, 0, key="stale"))
-        assert conflict.value == VersionConflict(0, 1)
+        assert conflict.value == VersionConflictError(0, 1)
         await scoped.rollback()
 
         assert await scoped.scalar(_event_count(aggregate)) == 1
