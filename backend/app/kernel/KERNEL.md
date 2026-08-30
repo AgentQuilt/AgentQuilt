@@ -8,7 +8,7 @@ interface: `session(org_id, principal_id)`, wave 2. schema: 0001, wave 1.
 
 ## identity
 
-interface: not built yet, wave 5.
+interface: `resolve`, `effective_grants`, `args_hash`, approvals, wave 5.
 
 ## declare
 
