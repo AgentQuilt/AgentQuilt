@@ -71,7 +71,7 @@ Fable orchestrates and plans · Opus sub-agents execute · Codex peer-reviews.
 |-|-|
 |Orchestration, planning, folding review findings, parent verification, merges, final decisions|Fable (main session)|
 |System-prompt changes and prompt fine-tuning — agent souls, prompt layers, any system-prompt text, factory or product|Fable, main session or Fable sub-agents; never Opus (owner, 2026-08-28)|
-|Investigation, scoping, bulk reading, implementation waves, browser work, doc/spec execution|Opus sub-agents (worktree isolation for anything non-trivial)|
+|Investigation, scoping, bulk reading, implementation waves, browser work, doc/spec execution|Opus sub-agents (worktree isolation for anything non-trivial). The `implementer` runs bounded: medium effort, 24 turns, no sub-agents, no web fetch or search (Context7 stays); a wave that needs more is split, not stretched (owner, 2026-08-30)|
 |Peer review of every plan and every diff|Codex (`codex exec -m gpt-5.6-sol`, diff inlined). The in-house `reviewer` agent is the fallback when Codex is down and the reviewer of non-diff artefacts.|
 
 Codex carve-out: a diff whose every file is Markdown prose may land with `security-reviewer` and `anti-slop` in place of Codex, and so may a deletion-only diff the owner ordered; any other diff touching `.claude/hooks/`, a script, `settings.json` or code goes to Codex, and nothing else is exempt.

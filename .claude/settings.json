@@ -2,7 +2,8 @@
   "env": {
     "AGENTQUILT_CURATE_THRESHOLD": "15",
     "AGENTQUILT_CURATE_COOLDOWN_SECONDS": "3600",
-    "AGENTQUILT_CURATE_MODEL": "claude-opus-5"
+    "AGENTQUILT_CURATE_MODEL": "claude-opus-5",
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1"
   },
   "hooks": {
     "Stop": [

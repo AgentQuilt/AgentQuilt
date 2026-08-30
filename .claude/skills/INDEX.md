@@ -3,7 +3,7 @@
 Catalog of the project skills in `.claude/skills/<name>/SKILL.md` plus the global skills the factory depends on (marked global). Maintained by
 `skill-author`; `self-curate` only flags a stale line. Sort alphabetical; one line per skill.
 
-- anti-slop — The implementer's self-check on its own diff before the report: the architecture checks by name, stop conditions, `Done:`/`Left out:`; `references/` hold the pattern catalogue, the prose routing to the humanizer chain, the measures and the ledger entry. Implementer-fired on its own diff, plus the closing anti-slop pass each wave (Fable); never on prose. [touched: 2026-08-24]
+- anti-slop — The implementer's self-check on its own diff before the report and Fable's closing pass before merge: the architecture checks by name, stop conditions, `Done:`/`Left out:`; `references/` hold the pattern catalogue, the prose routing to the humanizer chain, the measures and the ledger entry. Never on prose. [touched: 2026-08-30]
 - catchup — Re-read AGENTS.md, decision-log head, open questions, latest session log and the branch diff; report, change nothing. Fable-fired at session start or after compaction. [touched: 2026-08-27]
 - codex-review — Codex peer review of a diff or plan through the fail-closed gate (`scripts/review.sh`); fold discipline, stop rule, error taxonomy, arbitration. Fable-fired after every wave. [touched: 2026-08-27]
 - curate-fold — Decide each open entry in `$V/90-meta/suggestions.md` (accept / reject / defer, one sentence, marked in place), drain `$V/90-meta/curate-inbox.md` into the memory zones, and route accepted factory changes into a wave. Fires at the start of every wave, or at five open entries. [touched: 2026-08-27]

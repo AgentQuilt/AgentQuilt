@@ -1,6 +1,6 @@
 ---
 name: anti-slop
-description: The implementer's self-check on its own diff before the report: abstraction criterion, deletion test, reuse-before-create, stop conditions, Done/Left out. Not for prose; public copy goes to the humanizer chain.
+description: The implementer's self-check on its own diff before the report, and Fable's closing pass on the wave diff before merge: abstraction criterion, deletion test, reuse-before-create, stop conditions, Done/Left out. Not for prose; public copy goes to the humanizer chain.
 ---
 
 # anti-slop
@@ -19,7 +19,7 @@ checks in `rules/architecture.md`, severities in `REVIEW.md`, budgets in ruff an
 Stop when any line applies; report what you have plus the question.
 
 - The request says should, might or maybe, or has more than one reading.
-- The change is heading past five files, or past the ~500 changed lines in `rules/python.md`. Propose a smaller cut.
+- The change is heading well past the plan's task lines in files or size. Say so in the report and propose a smaller cut; a migration, a test or a docs line the task needs is not overshoot.
 - You are about to delete code that might still be used.
 - The task is a refactor and a test assertion would have to change. That is a behaviour change; say which one.
 - You are filling a gap with an assumption about intent. Write "I am assuming X" and ask.
@@ -42,15 +42,13 @@ The report ends with two sections:
 Prose published under the owner's name is routed by `references/prose.md`; metrics and
 the model-assumption-ledger entry are in `references/measure.md`.
 
+## Closing pass (Fable, after codex-review PASS, before merge)
+
+Fable runs the "On the finished diff" list once more on the wave diff, with the plan's task lines and the Codex findings open. Done: every hunk names its task line or is cut; nothing is added, and no new finding is raised that Codex did not (the pass reduces, it does not review).
+
 ## Success test
 
-The next `codex-review` round on the diff carries no P1 of kind deletion-test,
-one-adapter-seam, reuse-before-create or a simplicity-axis P1 signal, and at most two
-simplicity-axis P2 (threshold proposed, 2026-08-24). Verifier, kinds as REVIEW.md names them:
-`grep -cE '^P1 .*(deletion-test|one-adapter-seam|reuse-before-create|3\+ files|one-off|future flexibility|one call site|no instance state)' temp/<wave>_diff_review_r1.md` returns 0;
-`grep -cE '^P2 .*(proliferation|config for constants|middleware|try/catch|backward-compat)' temp/<wave>_diff_review_r1.md` returns at most 2.
-The same kind on two consecutive diffs means the line here that should have caught it
-is broken: fix the line, not only the diff.
+Two consecutive wave diffs carry no P1 of a named kind (`REVIEW.md`, Architecture axis) in round 1. The same kind on two consecutive diffs means the line here that should have caught it is broken: fix the line, not only the diff.
 
 ## Limits
 

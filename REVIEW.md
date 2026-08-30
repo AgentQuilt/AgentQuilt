@@ -16,8 +16,8 @@ fold discipline) lives in the `codex-review` skill; this file is the contract.
 
 * Flag only gaps that affect correctness or the stated requirements; style, coverage and "robustness" are P3 at most.
 * Skip anything ruff / Biome / tsc already enforces; the gates run it, a reviewer repeating it is noise.
-* P1 signals: 3+ files for a simple feature; a new pattern for a one-off; "future flexibility"; a helper with one call site; a class with no instance state.
-* P2 signals: Manager/Handler/Service proliferation; config for constants; middleware for a linear flow; try/catch around calls that should propagate; backward-compat shims where the code could just change.
+* P1 signals: a new pattern for a one-off; "future flexibility"; a fallback, option or compatibility layer no task line asked for.
+* P2 signals (shape, argued away in one sentence when the task needs it): 3+ files for a simple feature; a helper with one call site; a class with no instance state; Manager/Handler/Service proliferation; config for constants; middleware for a linear flow; try/catch around calls that should propagate; backward-compat shims where the code could just change.
 * Never ask for error handling, scalability, migration strategy or backward compatibility unless the task statement requires them. A diff that could be smaller is a finding.
 * The precedence rule (AGENTS.md, Code simplicity) binds the reviewer's own suggestions too.
 
