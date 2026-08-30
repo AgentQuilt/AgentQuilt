@@ -71,32 +71,6 @@ class VersionConflict(Exception):
 
 async def commit(session: AsyncSession, request: Commit) -> Action:
     await session.execute(_WRITER)
-    action = await _write(session, request)
-    await session.execute(_APP)
-    return action
-
-
-async def append(session: AsyncSession, request: Append) -> Event:
-    await session.execute(_WRITER)
-    event = Event(
-        org_id=UUID(session.info["org"]),
-        kind=request.kind,
-        aggregate_kind=request.aggregate_kind,
-        aggregate_id=request.aggregate_id,
-        aggregate_version=0,
-        run_id=request.run_id,
-        step_no=request.step_no,
-        principal_id=request.principal_id,
-        operation_name=request.operation_name,
-        payload=request.payload,
-    )
-    session.add(event)
-    await session.flush()
-    await session.execute(_APP)
-    return event
-
-
-async def _write(session: AsyncSession, request: Commit) -> Action:
     org = UUID(session.info["org"])
     stored = await session.scalar(
         select(Action)
@@ -108,6 +82,7 @@ async def _write(session: AsyncSession, request: Commit) -> Action:
         )
     )
     if stored is not None:
+        await session.execute(_APP)
         return stored
 
     # The lock is what serialises two commits on one aggregate: the second reads
@@ -176,4 +151,25 @@ async def _write(session: AsyncSession, request: Commit) -> Action:
         )
     )
     await session.flush()
+    await session.execute(_APP)
     return action
+
+
+async def append(session: AsyncSession, request: Append) -> Event:
+    await session.execute(_WRITER)
+    event = Event(
+        org_id=UUID(session.info["org"]),
+        kind=request.kind,
+        aggregate_kind=request.aggregate_kind,
+        aggregate_id=request.aggregate_id,
+        aggregate_version=0,
+        run_id=request.run_id,
+        step_no=request.step_no,
+        principal_id=request.principal_id,
+        operation_name=request.operation_name,
+        payload=request.payload,
+    )
+    session.add(event)
+    await session.flush()
+    await session.execute(_APP)
+    return event

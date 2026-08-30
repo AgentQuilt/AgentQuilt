@@ -60,8 +60,7 @@ def _request(principal: UUID, aggregate: UUID, expected: int, *, key: str) -> Co
     )
 
 
-def _events(aggregate: UUID) -> Select[tuple[int]]:
-    """How many events that aggregate has, whoever the reading session is."""
+def _event_count(aggregate: UUID) -> Select[tuple[int]]:
     return (
         select(func.count()).select_from(Event).where(Event.aggregate_id == aggregate)
     )
@@ -130,13 +129,13 @@ async def test_expected_version_mismatch_rolls_back(
         assert conflict.value == VersionConflict(0, 1)
         await scoped.rollback()
 
-        assert await scoped.scalar(_events(aggregate)) == 1
+        assert await scoped.scalar(_event_count(aggregate)) == 1
         head = await scoped.get(StreamHead, (org, "thing", aggregate))
         assert head is not None and head.version == 1
 
         await commit(scoped, _request(principal, aggregate, 1, key="second"))
         await scoped.commit()
-        assert await scoped.scalar(_events(aggregate)) == 2
+        assert await scoped.scalar(_event_count(aggregate)) == 2
         assert await scoped.scalar(
             select(StreamHead.version).where(StreamHead.aggregate_id == aggregate)
         ) == 2
@@ -157,7 +156,7 @@ async def test_retry_returns_stored_action(
         again = await commit(scoped, request)
         assert again.id == action_id
         await scoped.commit()
-        assert await scoped.scalar(_events(aggregate)) == 1
+        assert await scoped.scalar(_event_count(aggregate)) == 1
 
 
 async def test_append_writes_a_journal_event_without_action(
@@ -181,7 +180,7 @@ async def test_append_writes_a_journal_event_without_action(
         await scoped.commit()
         assert event.action_id is None
         assert event.aggregate_version == 0
-        assert await scoped.scalar(_events(aggregate)) == 1
+        assert await scoped.scalar(_event_count(aggregate)) == 1
 
     async with session(other_org, other_principal) as scoped:
-        assert await scoped.scalar(_events(aggregate)) == 0
+        assert await scoped.scalar(_event_count(aggregate)) == 0
