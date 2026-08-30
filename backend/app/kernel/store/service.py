@@ -14,7 +14,7 @@ from contextlib import asynccontextmanager
 from functools import cache
 from uuid import UUID
 
-from sqlalchemy import Connection, event, text
+from sqlalchemy import Connection, event, select, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -22,6 +22,8 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 from sqlalchemy.orm import Session, SessionTransaction
+
+from app.kernel.store.models import Principal
 
 # SET LOCAL takes no bind parameters, so the two tenant settings go through
 # set_config(..., is_local => true), which is the same thing and does.
@@ -48,6 +50,25 @@ event.listen(_ScopedSession, "after_begin", _apply_scope)
 @cache
 def engine() -> AsyncEngine:
     return create_async_engine(os.environ["DATABASE_URL"])
+
+
+async def tenants() -> list[tuple[UUID, UUID]]:
+    """Every org and the system principal a background role acts as in it.
+
+    The one read a background role cannot make org-scoped: `work` and `tick`
+    serve all tenants and have to find them before they can open a session. It
+    runs as the connecting role rather than `agentquilt_app`, and so needs a role
+    that row-level security does not filter. Harness workaround, 2026-08-30:
+    migration 0001 grants its policies to `agentquilt_app` alone under FORCE RLS,
+    so this reads everything only as a superuser; the role a deployment connects
+    with is a migration this wave did not open. Trigger: the first deployment
+    that is not a local container.
+    """
+    async with engine().connect() as connection:
+        rows = await connection.execute(
+            select(Principal.org_id, Principal.id).where(Principal.class_ == "system")
+        )
+        return [(org_id, principal_id) for org_id, principal_id in rows]
 
 
 @asynccontextmanager

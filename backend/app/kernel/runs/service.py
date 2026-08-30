@@ -20,10 +20,10 @@ from app.kernel.declare.registry import Stage
 from app.kernel.identity.models import Approval
 from app.kernel.identity.service import effective_grants
 from app.kernel.runs.models import MailboxMessage, StepQueue
-from app.kernel.store.models import AgentDefinition, Run, SkillVersion
+from app.kernel.store.models import AgentDefinition, Json, Run, SkillVersion
 
 # The run's aggregate in the ledger, and the two journal events this module writes.
-_AGGREGATE = "run"
+AGGREGATE = "run"
 CREATED = "run.created"
 CANCELLED = "run.cancelled"
 # A run starts at its first step, on the one queue Phase 1 has.
@@ -88,7 +88,7 @@ async def create(
         session,
         Append(
             kind="run_journal",
-            aggregate_kind=_AGGREGATE,
+            aggregate_kind=AGGREGATE,
             aggregate_id=run.id,
             principal_id=principal,
             payload={"event": CREATED, "stage": stage, "state": run.state},
@@ -103,8 +103,19 @@ async def send(
     session: AsyncSession, run_id: UUID, text: str
 ) -> MailboxMessage | None:
     """Steer a live run, or None when this org has no such run."""
-    # The lock on the run row is what serialises `seq`: a second sender reads the
-    # first's message only after it lands, so the numbers cannot collide or gap.
+    return await post(session, run_id, "steer", {"text": text})
+
+
+async def post(
+    session: AsyncSession, run_id: UUID, kind: str, body: Json
+) -> MailboxMessage | None:
+    """One message into a run's mailbox, or None when this org has no such run.
+
+    The lock on the run row is what serialises `seq`: a second writer reads the
+    first's message only after it lands, so the numbers cannot collide or gap.
+    The worker posts the kernel's own `conflict` notices through here, so there
+    is one allocator and not two.
+    """
     locked = await session.scalar(
         select(Run.id).where(Run.id == run_id).with_for_update()
     )
@@ -120,9 +131,9 @@ async def send(
         org_id=UUID(session.info["org"]),
         run_id=run_id,
         seq=seq,
-        kind="steer",
+        kind=kind,
         author_principal_id=UUID(session.info["principal"]),
-        body={"text": text},
+        body=body,
     )
     session.add(message)
     await session.flush()
@@ -163,7 +174,7 @@ async def cancel(session: AsyncSession, run_id: UUID) -> bool:
         session,
         Append(
             kind="run_journal",
-            aggregate_kind=_AGGREGATE,
+            aggregate_kind=AGGREGATE,
             aggregate_id=run_id,
             principal_id=UUID(session.info["principal"]),
             payload={"event": CANCELLED},

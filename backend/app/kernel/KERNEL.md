@@ -16,7 +16,7 @@ interface: registry, `dispatch()`, ledger `commit()` and `append()`, wave 4.
 
 ## runs
 
-interface: not built yet, wave 8.
+interface: `create`, `send`, `post`, `events`, `cancel`, wave 8; `claim` / `step` / `work_once` (the `work` role) and `tick_once` (the `tick` role), wave 8.
 
 ## context
 
