@@ -2,7 +2,7 @@
 
 Both run inside the caller's transaction and read the org from the session, so a
 caller cannot write into an org it did not open the session with. Both switch the
-connection to `agentquilt_ledger_writer` for their statements and back to
+connection to `agentquilt_ledger_writer` for their writes only and back to
 `agentquilt_app` before returning: the app role may read the ledger and never
 write it, which is what makes the append-only claim hold against application code.
 """
