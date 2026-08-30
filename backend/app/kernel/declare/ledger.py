@@ -37,7 +37,7 @@ class Commit:
     operation_name: str
     aggregate_kind: str
     aggregate_id: UUID
-    expected_version: int
+    expected_version: int | None
     principal_id: UUID
     run_id: UUID | None
     step_no: int | None
@@ -97,7 +97,8 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
         with_for_update=True,
     )
     actual = head.version if head is not None else 0
-    if actual != request.expected_version:
+    # None = the operation declares no aggregate: unversioned, no check (ADR-0017).
+    if request.expected_version is not None and actual != request.expected_version:
         raise VersionConflictError(request.expected_version, actual)
 
     # The reads above are the app role's; only the writes need the ledger writer,

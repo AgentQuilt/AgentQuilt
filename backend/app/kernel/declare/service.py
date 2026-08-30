@@ -147,7 +147,9 @@ async def _write(
                     operation_name=op.name,
                     aggregate_kind=aggregate[0],
                     aggregate_id=aggregate[1],
-                    expected_version=call.expected_version or 0,
+                    expected_version=(
+                        call.expected_version if op.aggregate is not None else None
+                    ),
                     principal_id=ctx.principal_id,
                     run_id=ctx.run_id,
                     step_no=ctx.step_no,

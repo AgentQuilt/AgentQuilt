@@ -20,7 +20,7 @@ paths: ["**/*.py"]
 - Budgets: ≤5 args (≤3 positional), ~30 statements, complexity 8 per function. At the limit, fix the interface — don't add an options object, and never condense statements or shorten names to fit.
 - Structure by domain, not by layer: `backend/app/kernel/<module>/` and `backend/app/modules/<module>/`, each holding `MODULE.md`, `models.py`, `service.py`, `router.py` (where a route exists) and `tests/`. `service.py` is a permitted filename per the vault's naming conventions; "service" stays out of design prose. No repository / unit-of-work / DTO-per-layer tiers over SQLAlchemy 2.0 — `AsyncSession` is the layer. `Annotated[..., Depends()]` is the DI container; don't add another.
 - Never block the event loop inside `async def` (`requests`, `time.sleep`, sync ORM). Async end-to-end; CPU >50 ms goes to a worker.
-- Keep `__init__.py` files present and empty — no re-export walls.
+- Keep `__init__.py` files present and empty — no re-export walls. One exception: `app/modules/__init__.py` imports each buildable module so the registry, `catalog` and `serve` see its declarations.
 - Tests: real Postgres (testcontainers), async `httpx` client from day one, `dependency_overrides` for auth/external services only. No DB mocks, no monkeypatching internals.
 - Docstrings only where behaviour is non-obvious. Every changed line must trace to the request.
 - Unless the change is mechanical, keep a diff under ~500 changed lines; if it's heading past that, stop and propose a smaller cut.

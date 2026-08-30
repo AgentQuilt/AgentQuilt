@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import timedelta
-from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import Select, func, select, text
@@ -34,15 +34,7 @@ from tests.kit_notes import grant, note_table, notes_registry
 pytestmark = pytest.mark.anyio
 
 WRITE = "note.write_note"
-# An operation with no aggregate still commits on one stream of its own, so every
-# `decide_approval` call reads that stream's version before it passes it.
-DECIDE_STREAM = uuid5(NAMESPACE_URL, DECIDE)
-
 _NOTE_BODY = text("SELECT body FROM mod_test.note WHERE id = :id")
-_HEAD = text(
-    "SELECT version FROM core.stream_head"
-    " WHERE aggregate_kind = 'operation' AND aggregate_id = :id"
-)
 _RUN = text(
     "INSERT INTO core.run (id, org_id, agent_definition_id, stage, state,"
     " budget_cap_tokens, prefix_key, capability_ceiling, prefix_profile)"
@@ -134,7 +126,6 @@ async def _decide(
             operation_name=DECIDE,
             args=args,
             tool_call_id=f"tc-{approval_id}",
-            expected_version=await scoped.scalar(_HEAD, {"id": DECIDE_STREAM}) or 0,
         ),
     )
     assert isinstance(outcome, Committed)
