@@ -12,7 +12,7 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import func, update
+from sqlalchemy import func, select, update
 
 from app.kernel.declare.models import Json
 from app.kernel.declare.registry import CallContext, Declares, registry
@@ -46,8 +46,18 @@ async def decide_approval(ctx: CallContext, args: DecideApproval) -> Json:
     if decider is None or decider.class_ not in DECIDERS:
         raise ValueError(f"{NAME}: a principal of class {DECIDERS} decides an approval")
 
-    # Under the row lock, so two deciders answering at once cannot both move it.
-    approval = await ctx.session.get(Approval, args.approval_id, with_for_update=True)
+    # The approval names the run, and the lock order is the run row first (the
+    # lifecycle mutex, runs/MODULE.md): the peek is unlocked, and the locked
+    # re-read below is what decides — two deciders serialize on the run row.
+    peek = await ctx.session.get(Approval, args.approval_id)
+    if peek is None:
+        return {"decided": False, "state": None}
+    await ctx.session.execute(
+        select(Run.id).where(Run.id == peek.run_id).with_for_update()
+    )
+    approval = await ctx.session.get(
+        Approval, args.approval_id, with_for_update=True, populate_existing=True
+    )
     if approval is None or approval.state != "requested":
         return {"decided": False, "state": approval.state if approval else None}
 

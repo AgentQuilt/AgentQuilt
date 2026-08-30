@@ -95,6 +95,11 @@ async def _continue(session: AsyncSession, approval: Approval) -> int:
     is never enqueued twice. The resumed call finds no open approval and carries
     on with dispatch's `approval_unavailable` denial as its tool result.
     """
+    # The lifecycle mutex first (runs/MODULE.md): the run row, then the approval,
+    # the same order cancel takes them.
+    await session.execute(
+        select(Run.id).where(Run.id == approval.run_id).with_for_update()
+    )
     moved = await session.scalar(
         update(Approval)
         .where(Approval.id == approval.id, Approval.state == "requested")
