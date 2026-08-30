@@ -18,7 +18,7 @@ Lane write scope (decision log, 2026-08-26, authority split): the hook-spawned l
    - In-session (`/self-curate` typed in a working session): only entries whose `session:` is this session count; the id is in the path of any persisted tool result (`…/projects/<slug>/<session-id>/tool-results/…`). Foreign entries are context.
    Done: lane type stated; or "Nothing to curate." when the slice is empty and the tree is clean, and stop.
 2. Route each item to exactly one zone. Formats are in each file's own header.
-   - Session log `$V/90-meta/session-log/YYYY-MM-DD.md`: progress, what was tried, what was read. Create the file when missing, else append.
+   - Session log `$V/90-meta/session-log/YYYY-MM-DD.md`: progress, what was tried, what was read. Create the file when missing, else append. A section heading's time comes from `date -u` at write time, or from the transcript or `git log --date=iso` for work already done; a heading found wrong later is corrected in a new section with the verified anchors, never edited in place (step 5).
    - Decision log `$V/90-meta/decision-log.md`: a question settled with its why. Prepend (newest first), name what it supersedes, leave the old entry as it is; one breadcrumb line in the session log.
    - Open questions `$V/90-meta/open-questions.md`: a genuine fork as a `- [ ]` bullet with options and a decision trigger. An answered one moves: decision log first, then tick the bullet with a pointer to the decision date.
    - Cross-project memory: a durable, non-secret fact visible from other repos, written with the tool named in AGENTS.md (Self-curation). Batch the proposals and ask the owner once; nothing is written without that confirmation.

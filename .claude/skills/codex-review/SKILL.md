@@ -9,10 +9,10 @@ The contract is `REVIEW.md`; the prompt (`references/prompt-template.md`) inline
 
 ## Procedure (one round)
 
-1. Write `temp/<wave>_review_context.md`: the wave brief and the task lines the task-fidelity axis quotes; on round N>1, append what round N-1's findings became (folded, or argued away in one sentence). Done: the file names every task line.
+1. Write `temp/<wave>_review_context.md`: the wave brief and the task lines the task-fidelity axis quotes; on round N>1, append what round N-1's findings became (folded, or argued away in one sentence) and rewrite the acceptance criteria and task lines from the owner-approved plan plus the recorded fold and owner decisions, the tree correcting only names and paths, with the delta from the plan's originals listed in the context file. Done: the file names every task line as those decisions carry it; a round that FAILs on stale orchestrator wording is a loop defect to record, not a code finding.
 2. Run from the wave checkout: `bash .claude/skills/codex-review/scripts/review.sh diff <wave> [base] [round]` or `... plan <wave> <file> [round]`; prompt and output land in `temp/`. Done: a `VERDICT:` line printed under `--- gate ---`.
 3. Read the reviewer output, then write one line before touching anything: `Recommendation: <action> because <finding>`. Done: the line quotes a finding or `NO FINDINGS`.
-4. Fold: every P1; every P2 unless argued away in one sentence in the next context file. Done: one commit per round with the round number in the message.
+4. Fold: first check each finding against the wave's acceptance criteria — one that adds a file, a seam or behaviour outside them is a User Challenge for the owner, never folded on the orchestrator's judgment; then every P1, and every P2 unless argued away in one sentence in the next context file. Done: the AGENTS.md gates pass on the folded tree, then one commit per round with the round number in the message; a red gate is fixed inside the round, never carried into the next.
 5. Re-run; before reusing an old verdict, `review.sh check temp/<wave>_<mode>_review_rN.md` says whether it still binds (content hash of the tree, and the plan file in plan mode, stamped before the review ran).
 
 ## Gate
@@ -21,7 +21,7 @@ In the script; every doubt is FAIL. Only the tag grammar in the template counts.
 
 ## Stop rule
 
-Stop at PASS, or at no P1 with the remaining P2s accepted and written down. Round 4 is the cap: state the cost and stop; a fifth round runs only on the owner's word, given after the cost is stated. A degenerate round (cosmetic findings only, still FAIL) is discarded and re-run with a fresh prompt. An expanding frontier (consecutive FAILs each naming a new actor, a new file, or a new case in the same function) means the design shape is wrong: back to the plan, not another fold.
+Stop at PASS, or at no P1 with the remaining P2s accepted and written down. Round 4 is the cap: state the cost and stop; a fifth round runs only on the owner's word, given after the cost is stated. A degenerate round (cosmetic findings only, still FAIL) is discarded and re-run with a fresh prompt. An expanding frontier (consecutive FAILs each naming a new actor, a new file, or a new case in the same function) means the design shape is wrong: back to the plan, not another fold. The exception is a frontier of reviewer expectations against an unchanged function: that is answered by correcting the task statement, not by reopening the plan (owner, 2026-08-30).
 
 ## Error taxonomy
 

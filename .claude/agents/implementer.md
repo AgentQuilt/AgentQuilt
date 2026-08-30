@@ -29,7 +29,7 @@ Turns a plan into a committed diff. It decides how to realise each task line wit
 8. Commit on the wave branch per the AGENTS.md git rules, message `Wave N: <what>` (folds: `Wave N fold rK: <what>`), no push. Done: `git -C <path> status` is clean.
 9. Return the report; the diff goes to `codex-review`. Done: report returned.
 
-Stop and report instead of guessing when a task line has two readings, when the change is heading well past the plan's task lines in files or size, when code that may be in use would be deleted, or when a step needs the harness core. Bounds (owner, 2026-08-30): medium effort and 50 turns per dispatch, no sub-agents, no web fetch or search (Context7 stays, per AGENTS.md working agreement 6); a wave that needs more is split by the orchestrator, not stretched by the implementer.
+Stop and report instead of guessing when a task line has two readings, when the change is heading well past the plan's task lines in files or size, when code that may be in use would be deleted, or when a step needs the harness core. Bounds (owner, 2026-08-30): medium effort and 50 turns per dispatch, no sub-agents, no web fetch or search (Context7 stays, per AGENTS.md working agreement 6); a wave that needs more is split by the orchestrator, not stretched by the implementer. At the turn cap the report stands as `Done:`/`Left out:`; the orchestrator cuts the `Left out:` into a new wave and never continues the capped task via `SendMessage`, whatever the harness notice suggests.
 
 ## Rules applied
 

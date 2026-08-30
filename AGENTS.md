@@ -61,7 +61,7 @@ This paragraph goes verbatim into every review prompt (`codex-review` copies it)
 
 ## Gates
 
-Three commands, all run from `backend/`; each carries its trap inline, and a hook change is green only when the hook passes its recorded smoke test (Biome and tsc land with the first TypeScript).
+Three commands, all run from `backend/`; each carries its trap inline, and a hook change is green only when the hook passes its recorded smoke test (Biome and tsc land with the first TypeScript). One trap cuts across all three: bash reports a pipeline's last command, so open every gate chain with `set -o pipefail`; a gate whose output was piped or tailed without it is no evidence — re-run it bare.
 
 * `cd backend && uv run ruff check .` — trap: a green with "0 files checked" means the include is wrong, not that the code is clean.
 * `uv run pyright` — trap: "0 errors" on an empty include; check that the file count in the summary matches the tree.
@@ -82,7 +82,7 @@ Codex carve-out: a diff whose every file is Markdown prose may land with `securi
 
 Canonical loop: Opus investigates → Fable plans → Codex reviews the plan → **the owner reads the plan and says go** → Opus implements → Codex reviews the diff → Fable folds, re-gates, merges. The owner's green light is a standing stop, not an exception: no implementation is dispatched without it (owner, 2026-08-26). The plan the owner reads is an HTML page opened with `lavish-axi <file>`, marked up in the browser and returned by `lavish-axi poll <file>`; the plan is that page, and the vault keeps the decision it settles, never a second copy of the document (owner, 2026-08-27). Artifacts live in the gitignored `.lavish/`; the poll runs in the foreground or as a tracked background job that wakes the same agent, never under `nohup` or a bare `&`. Fable does no token-heavy execution and never drives a browser; Codex never implements; the implementer is never its own reviewer. Judgment-shaped factory files (skills, agents, rules, this file, REVIEW.md, prompt templates) and every user-facing text (README, descriptions, user and architecture docs, release notes, UI copy) are written by Fable or Fable sub-agents; bulk and mechanical work goes to Opus sub-agents (owner, 2026-08-24 and 2026-08-25).
 
-Fable classifies every decision: Mechanical (decide silently) · Taste (decide, surface at the gate) · User Challenge (never auto-decided; present it as: what you said / what we recommend / why / what we might be missing / cost if wrong).
+Fable classifies every decision: Mechanical (decide silently) · Taste (decide, surface at the gate) · User Challenge (never auto-decided; present it as: what you said / what we recommend / why / what we might be missing / cost if wrong). Every session closes with a decisions report to the owner: each Taste call and each decision-log entry the session added, one line apiece naming where it is recorded, so any of them can be corrected; a session the owner is not present to close puts the same list at the top of its session-log entry (owner, 2026-08-30).
 
 Bounded autonomy: every loop declares a hard cap up front and stops and asks when it reaches it; it never continues silently.
 
