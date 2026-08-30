@@ -46,11 +46,11 @@ max-positional-args = 3
 "../.claude/hooks/*.py" = ["BLE001", "S110"]
 
 [tool.pyright]
-include = ["app", "migrations", "tests"]
+include = ["app", "conftest.py", "migrations", "tests"]
 extraPaths = ["migrations"]
 typeCheckingMode = "strict"
 pythonVersion = "3.13"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "app"]
 pythonpath = ["migrations"]

@@ -8,17 +8,15 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 
 import psycopg
 import pytest
 from alembic import command
-from alembic.config import Config
 from psycopg import sql
 from psycopg.errors import InsufficientPrivilege
 
-BACKEND = Path(__file__).resolve().parents[1]
+from conftest import alembic_config
 
 TENANT_TABLES = frozenset(
     {
@@ -74,8 +72,7 @@ def _as_role(url: str, role: str, org: uuid.UUID) -> psycopg.Connection[Any]:
 @pytest.fixture(scope="module")
 def spine(postgres_url: str) -> Iterator[str]:
     """Upgrade, downgrade to base and upgrade again; the tests read the second head."""
-    config = Config(str(BACKEND / "alembic.ini"))
-    config.set_main_option("script_location", str(BACKEND / "migrations"))
+    config = alembic_config()
     with pytest.MonkeyPatch.context() as patch:
         patch.setenv("DATABASE_URL", postgres_url)
         command.upgrade(config, "head")
