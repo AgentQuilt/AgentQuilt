@@ -140,6 +140,10 @@ async def step(
         registry=registry,
     )
     answered = await model.run(session, assembled, run, runner=runner)
+    # The lifecycle mutex (runs/MODULE.md), taken after the model call so no
+    # writer ever waits on a model, and before dispatch so every approval row
+    # this step creates or reads sits under it.
+    await session.execute(select(Run.id).where(Run.id == run.id).with_for_update())
     if isinstance(answered, model.Refused):
         # Terminal, and no checkpoint: nothing was bought, so there is nothing to
         # resume from, and a person starts a new run rather than the worker
