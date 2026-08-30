@@ -12,12 +12,14 @@ from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
-from sqlalchemy import text
+from sqlalchemy import func, update
 
 from app.kernel.declare.models import Json
 from app.kernel.declare.registry import CallContext, Declares, registry
 from app.kernel.identity.models import Approval
-from app.kernel.store.models import Principal
+from app.kernel.runs.models import StepQueue
+from app.kernel.runs.service import QUEUE_TAG
+from app.kernel.store.models import Principal, Run
 
 NAME = "governance.decide_approval"
 # Only a person or the system decides an approval (ADR-0004): an agent that could
@@ -26,16 +28,7 @@ DECIDERS = ("user", "system")
 
 # The run is handed back guarded: only a run still waiting on this answer moves,
 # and the queue row goes in only when the guard matched, so a cancelled or
-# already-running run is decided without being enqueued twice. Raw SQL because
-# `core.run` and `core.step_queue` are mapped in wave 8, not here.
-_QUEUE_RUN = text(
-    "UPDATE core.run SET state = 'queued', updated_at = now()"
-    " WHERE id = :run AND state = 'waiting_approval' RETURNING id"
-)
-_ENQUEUE_STEP = text(
-    "INSERT INTO core.step_queue (org_id, run_id, step_no, queue_tag)"
-    " VALUES (:org, :run, :step, 'main')"
-)
+# already-running run is decided without being enqueued twice.
 
 
 class DecideApproval(BaseModel):
@@ -66,14 +59,21 @@ async def decide_approval(ctx: CallContext, args: DecideApproval) -> Json:
         approval.reason = args.reason
     await ctx.session.flush()
 
-    queued = await ctx.session.scalar(_QUEUE_RUN, {"run": approval.run_id})
+    queued = await ctx.session.scalar(
+        update(Run)
+        .where(Run.id == approval.run_id, Run.state == "waiting_approval")
+        .values(state="queued", updated_at=func.now())
+        .returning(Run.id)
+        .execution_options(synchronize_session=False)
+    )
     if queued is not None:
-        await ctx.session.execute(
-            _ENQUEUE_STEP,
-            {
-                "org": UUID(ctx.session.info["org"]),
-                "run": approval.run_id,
-                "step": approval.step_no,
-            },
+        ctx.session.add(
+            StepQueue(
+                org_id=UUID(ctx.session.info["org"]),
+                run_id=approval.run_id,
+                step_no=approval.step_no,
+                queue_tag=QUEUE_TAG,
+            )
         )
+        await ctx.session.flush()
     return {"decided": True, "state": approval.state, "run_queued": queued is not None}
