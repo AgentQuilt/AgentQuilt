@@ -9,6 +9,10 @@ Create Date: 2026-08-30
 has an action, no other kind does), and a DEFERRABLE INITIALLY DEFERRED foreign
 key, so one transaction can insert the event with a client-generated action id
 and the action with the event's id, in that order, and settle at COMMIT.
+
+It also gives the ledger writer SELECT on the two append-only tables: the writer
+inserts them with RETURNING (the identity id the action and stream_head point at),
+and Postgres reads RETURNING as a read, so INSERT alone is not enough.
 """
 
 from __future__ import annotations
@@ -46,9 +50,17 @@ def upgrade() -> None:
         "(kind = 'operation_commit') = (action_id IS NOT NULL)",
         schema="core",
     )
+    # Reading is not writing: the append-only grants stand, and the row-level
+    # policy scopes this SELECT to the session's org exactly as the app role's.
+    op.execute(
+        "GRANT SELECT ON core.event, core.action TO agentquilt_ledger_writer"
+    )
 
 
 def downgrade() -> None:
+    op.execute(
+        "REVOKE SELECT ON core.event, core.action FROM agentquilt_ledger_writer"
+    )
     op.drop_constraint(
         "ck_event_action_id_by_kind", "event", type_="check", schema="core"
     )
