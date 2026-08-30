@@ -19,6 +19,7 @@ agentquilt = "app.main:main"
 dev = [
     "anyio==4.14.2",
     "httpx==0.28.1",
+    "hypothesis==6.167.1",
     "pyright==1.1.411",
     "pytest==9.1.1",
     "ruff==0.16.5",
