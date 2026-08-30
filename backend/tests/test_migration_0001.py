@@ -34,14 +34,23 @@ TENANT_TABLES = frozenset(
         "action",
         "idempotency_key",
         "approval",
+        "run",
+        "step_queue",
+        "mailbox_message",
+        "checkpoint",
+        "context_manifest",
+        "usage_record",
+        "skill",
+        "skill_version",
     }
 )
-GLOBAL_TABLES = frozenset({"operation_version"})
+GLOBAL_TABLES = frozenset({"operation_version", "tier", "tier_binding"})
 
-CORE_TABLE_STATE = (
+# Table names are unique across the two schemas, so the name alone identifies a row.
+SPINE_TABLE_STATE = (
     "SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity FROM pg_class c"
     " JOIN pg_namespace n ON n.oid = c.relnamespace"
-    " WHERE n.nspname = 'core' AND c.relkind = 'r'"
+    " WHERE n.nspname IN ('core', 'mod_skills') AND c.relkind = 'r'"
 )
 EVENT_INSERT = (
     "INSERT INTO core.event (org_id, kind, aggregate_kind, aggregate_id,"
@@ -96,9 +105,22 @@ def orgs(spine: str) -> tuple[uuid.UUID, uuid.UUID]:
 def test_chain_round_trips_and_creates_every_table(spine: str) -> None:
     with _connect(spine) as conn:
         version = conn.execute("SELECT version_num FROM alembic_version").fetchone()
-        tables = conn.execute(CORE_TABLE_STATE).fetchall()
+        tables = conn.execute(SPINE_TABLE_STATE).fetchall()
+        tiers = conn.execute("SELECT name FROM core.tier ORDER BY name").fetchall()
+        queue_options = conn.execute(
+            "SELECT reloptions FROM pg_class WHERE oid = 'core.step_queue'::regclass"
+        ).fetchone()
     assert version == ("0001",)
     assert {row[0] for row in tables} == TENANT_TABLES | GLOBAL_TABLES
+    # Seeded by the migration, so the round trip has to leave exactly one set.
+    assert tiers == [("executor",), ("image",), ("orchestrator",), ("simple",)]
+    # The storage parameters have no SQLAlchemy argument, so nothing else guards them.
+    assert queue_options == (
+        [
+            "autovacuum_vacuum_scale_factor=0.02",
+            "autovacuum_vacuum_threshold=50",
+        ],
+    )
 
 
 def test_row_level_security_is_enabled_and_forced_on_tenant_tables(
@@ -107,12 +129,14 @@ def test_row_level_security_is_enabled_and_forced_on_tenant_tables(
     with _connect(spine) as conn:
         state = {
             name: (enabled, forced)
-            for name, enabled, forced in conn.execute(CORE_TABLE_STATE).fetchall()
+            for name, enabled, forced in conn.execute(SPINE_TABLE_STATE).fetchall()
         }
     assert {name: state[name] for name in TENANT_TABLES} == dict.fromkeys(
         TENANT_TABLES, (True, True)
     )
-    assert state["operation_version"] == (False, False)
+    assert {name: state[name] for name in GLOBAL_TABLES} == dict.fromkeys(
+        GLOBAL_TABLES, (False, False)
+    )
 
 
 def test_app_role_sees_only_the_org_in_app_org_id(

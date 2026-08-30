@@ -1,4 +1,4 @@
-"""Create the spine: schemas, roles, tenant and ledger tables, RLS.
+"""Create the spine: schemas, roles, every table of the first migration, RLS.
 
 Revision ID: 0001
 Revises:
@@ -28,22 +28,36 @@ LEDGER_ROLE = "agentquilt_ledger_writer"
 # Creation order: every foreign key points at a table above it, so the reverse
 # is a safe drop order.
 CREATE_ORDER = (
-    "org",
-    "user",
-    "principal",
-    "agent_definition",
-    "user_token",
-    "role",
-    "grant",
-    "event",
-    "stream_head",
-    "operation_version",
-    "action",
-    "idempotency_key",
-    "approval",
+    ("core", "org"),
+    ("core", "user"),
+    ("core", "principal"),
+    ("core", "agent_definition"),
+    ("core", "user_token"),
+    ("core", "role"),
+    ("core", "grant"),
+    ("core", "event"),
+    ("core", "stream_head"),
+    ("core", "operation_version"),
+    ("core", "action"),
+    ("core", "idempotency_key"),
+    ("core", "approval"),
+    ("core", "tier"),
+    ("core", "tier_binding"),
+    ("mod_skills", "skill"),
+    ("mod_skills", "skill_version"),
+    ("core", "run"),
+    ("core", "step_queue"),
+    ("core", "mailbox_message"),
+    ("core", "checkpoint"),
+    ("core", "context_manifest"),
+    ("core", "usage_record"),
 )
 # Deployment-global: no org_id, so no row-level security.
-GLOBAL_TABLES = ("operation_version",)
+GLOBAL_TABLES = (
+    ("core", "operation_version"),
+    ("core", "tier"),
+    ("core", "tier_binding"),
+)
 # RLS keys on org_id, or on id for org itself.
 TENANT_TABLES = tuple(t for t in CREATE_ORDER if t not in GLOBAL_TABLES)
 # No role may UPDATE or DELETE these: the ledger is append-only (ADR-0002).
@@ -57,6 +71,24 @@ def _org_id(table: str) -> sa.Column[Any]:
         "org_id",
         UUID,
         sa.ForeignKey("core.org.id", name=f"fk_{table}_org"),
+        nullable=False,
+    )
+
+
+def _run_id(table: str) -> sa.Column[Any]:
+    return sa.Column(
+        "run_id",
+        UUID,
+        sa.ForeignKey("core.run.id", name=f"fk_{table}_run"),
+        nullable=False,
+    )
+
+
+def _tier(table: str) -> sa.Column[Any]:
+    return sa.Column(
+        "tier",
+        sa.Text,
+        sa.ForeignKey("core.tier.name", name=f"fk_{table}_tier"),
         nullable=False,
     )
 
@@ -321,36 +353,237 @@ def upgrade() -> None:
         "ix_approval_org_state", "approval", ["org_id", "state"], schema="core"
     )
 
-    for table in TENANT_TABLES:
+    op.create_table(
+        "tier",
+        sa.Column("name", sa.Text, primary_key=True),
+        sa.CheckConstraint(
+            "name IN ('orchestrator', 'executor', 'simple', 'image')",
+            name="ck_tier_name",
+        ),
+        schema="core",
+    )
+    # The four tiers are the vocabulary ADR-0009 fixes, not configuration.
+    op.execute(
+        "INSERT INTO core.tier (name) VALUES"
+        " ('orchestrator'), ('executor'), ('simple'), ('image')"
+    )
+    op.create_table(
+        "tier_binding",
+        sa.Column("id", UUID, primary_key=True),
+        _tier("tier_binding"),
+        sa.Column("provider", sa.Text, nullable=False),
+        sa.Column("model", sa.Text, nullable=False),
+        # Not every provider takes an effort setting.
+        sa.Column("effort", sa.Text, nullable=True),
+        sa.Column("version", sa.Integer, nullable=False),
+        _created_at(),
+        schema="core",
+    )
+    op.create_table(
+        "skill",
+        sa.Column("id", UUID, primary_key=True),
+        _org_id("skill"),
+        sa.Column("name", sa.Text, nullable=False),
+        schema="mod_skills",
+    )
+    op.create_table(
+        "skill_version",
+        sa.Column("id", sa.Text, primary_key=True),
+        _org_id("skill_version"),
+        sa.Column(
+            "skill_id",
+            UUID,
+            sa.ForeignKey("mod_skills.skill.id", name="fk_skill_version_skill"),
+            nullable=False,
+        ),
+        _tier("skill_version"),
+        sa.Column("execution_mode", sa.Text, nullable=False),
+        sa.Column("operations", JSONB, nullable=False),
+        sa.Column("stage", sa.Text, nullable=False),
+        sa.Column("body", sa.Text, nullable=False),
+        _created_at(),
+        sa.CheckConstraint(
+            "execution_mode IN ('inline', 'delegated')",
+            name="ck_skill_version_execution_mode",
+        ),
+        schema="mod_skills",
+    )
+
+    op.create_table(
+        "run",
+        sa.Column("id", UUID, primary_key=True),
+        sa.Column(
+            "parent_id",
+            UUID,
+            sa.ForeignKey("core.run.id", name="fk_run_parent"),
+            nullable=True,
+        ),
+        _org_id("run"),
+        sa.Column(
+            "agent_definition_id",
+            UUID,
+            sa.ForeignKey(
+                "core.agent_definition.id", name="fk_run_agent_definition"
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "skill_version_id",
+            sa.Text,
+            sa.ForeignKey(
+                "mod_skills.skill_version.id", name="fk_run_skill_version"
+            ),
+            nullable=True,
+        ),
+        sa.Column("stage", sa.Text, nullable=False),
+        sa.Column("state", sa.Text, nullable=False),
+        sa.Column("failure_reason", sa.Text, nullable=True),
+        sa.Column("budget_cap_tokens", sa.Integer, nullable=False),
+        sa.Column("prefix_key", sa.Text, nullable=False),
+        sa.Column("capability_ceiling", JSONB, nullable=False),
+        # Root runs only: a child narrows against its parent's state.
+        sa.Column("narrowing_state", JSONB, nullable=True),
+        sa.Column("prefix_profile", sa.Text, nullable=False),
+        sa.Column(
+            "acting_external_principal_id",
+            UUID,
+            sa.ForeignKey("core.principal.id", name="fk_run_acting_external"),
+            nullable=True,
+        ),
+        sa.Column("pinned_worker_id", sa.Text, nullable=True),
+        sa.Column("worker_heartbeat_at", sa.TIMESTAMP(timezone=True), nullable=True),
+        _created_at(),
+        sa.Column(
+            "updated_at",
+            sa.TIMESTAMP(timezone=True),
+            nullable=False,
+            server_default=NOW,
+        ),
+        sa.CheckConstraint(
+            "state IN ('queued', 'running', 'waiting_approval', 'succeeded',"
+            " 'failed', 'cancelled')",
+            name="ck_run_state",
+        ),
+        sa.CheckConstraint(
+            "prefix_profile IN ('personal', 'space', 'none')",
+            name="ck_run_prefix_profile",
+        ),
+        schema="core",
+    )
+    op.create_table(
+        "step_queue",
+        _org_id("step_queue"),
+        _run_id("step_queue"),
+        sa.Column("step_no", sa.Integer, nullable=False),
+        sa.Column("queue_tag", sa.Text, nullable=False),
+        sa.Column("lease_until", sa.TIMESTAMP(timezone=True), nullable=True),
+        sa.Column("claimed_by", sa.Text, nullable=True),
+        sa.PrimaryKeyConstraint("run_id", "step_no"),
+        schema="core",
+    )
+    # Rows live for one step, so the default 20% threshold leaves dead tuples in
+    # a hot queue far too long (ADR-0019:31). Storage parameters have no
+    # SQLAlchemy table argument, so they are set after the create.
+    op.execute(
+        "ALTER TABLE core.step_queue SET ("
+        "autovacuum_vacuum_scale_factor = 0.02,"
+        " autovacuum_vacuum_threshold = 50)"
+    )
+    op.create_table(
+        "mailbox_message",
+        sa.Column("id", UUID, primary_key=True),
+        _org_id("mailbox_message"),
+        _run_id("mailbox_message"),
+        sa.Column("seq", sa.Integer, nullable=False),
+        sa.Column("kind", sa.Text, nullable=False),
+        sa.Column(
+            "author_principal_id",
+            UUID,
+            sa.ForeignKey(
+                "core.principal.id", name="fk_mailbox_message_principal"
+            ),
+            nullable=False,
+        ),
+        sa.Column("body", JSONB, nullable=False),
+        _created_at(),
+        sa.CheckConstraint(
+            "kind IN ('steer', 'conflict', 'context_lost')",
+            name="ck_mailbox_message_kind",
+        ),
+        sa.UniqueConstraint("run_id", "seq", name="uq_mailbox_message_run_seq"),
+        schema="core",
+    )
+    op.create_table(
+        "checkpoint",
+        sa.Column("id", UUID, primary_key=True),
+        _org_id("checkpoint"),
+        _run_id("checkpoint"),
+        sa.Column("step_no", sa.Integer, nullable=False),
+        sa.Column("state", JSONB, nullable=False),
+        _created_at(),
+        schema="core",
+    )
+    op.create_table(
+        "context_manifest",
+        sa.Column("id", UUID, primary_key=True),
+        _org_id("context_manifest"),
+        _run_id("context_manifest"),
+        sa.Column("step_no", sa.Integer, nullable=False),
+        sa.Column("prefix_key", sa.Text, nullable=False),
+        sa.Column("layers", JSONB, nullable=False),
+        sa.Column("token_cost", sa.Integer, nullable=False),
+        sa.Column("cache_positions", JSONB, nullable=False),
+        sa.Column("telemetry", JSONB, nullable=False),
+        sa.Column("effective_scope", JSONB, nullable=False),
+        _created_at(),
+        schema="core",
+    )
+    op.create_table(
+        "usage_record",
+        sa.Column("id", UUID, primary_key=True),
+        _org_id("usage_record"),
+        _run_id("usage_record"),
+        sa.Column("step_no", sa.Integer, nullable=False),
+        _tier("usage_record"),
+        sa.Column("input_tokens", sa.Integer, nullable=False),
+        sa.Column("output_tokens", sa.Integer, nullable=False),
+        sa.Column("cached_tokens", sa.Integer, nullable=False),
+        _created_at(),
+        schema="core",
+    )
+
+    for schema, table in TENANT_TABLES:
         key = "id" if table == "org" else "org_id"
         predicate = f"{key} = current_setting('app.org_id', true)::uuid"
-        op.execute(f'ALTER TABLE core."{table}" ENABLE ROW LEVEL SECURITY')
-        op.execute(f'ALTER TABLE core."{table}" FORCE ROW LEVEL SECURITY')
+        op.execute(f'ALTER TABLE {schema}."{table}" ENABLE ROW LEVEL SECURITY')
+        op.execute(f'ALTER TABLE {schema}."{table}" FORCE ROW LEVEL SECURITY')
         op.execute(
-            f'CREATE POLICY rls_{table} ON core."{table}" FOR ALL '
+            f'CREATE POLICY rls_{table} ON {schema}."{table}" FOR ALL '
             f"TO {APP_ROLE}, {LEDGER_ROLE} "
             f"USING ({predicate}) WITH CHECK ({predicate})"
         )
         if table in APPEND_ONLY:
-            op.execute(f'GRANT SELECT ON core."{table}" TO {APP_ROLE}')
-            op.execute(f'GRANT INSERT ON core."{table}" TO {LEDGER_ROLE}')
+            op.execute(f'GRANT SELECT ON {schema}."{table}" TO {APP_ROLE}')
+            op.execute(f'GRANT INSERT ON {schema}."{table}" TO {LEDGER_ROLE}')
         else:
             op.execute(
-                f'GRANT SELECT, INSERT, UPDATE, DELETE ON core."{table}" TO {APP_ROLE}'
+                f'GRANT SELECT, INSERT, UPDATE, DELETE ON {schema}."{table}"'
+                f" TO {APP_ROLE}"
             )
     for table in LEDGER_WRITABLE:
         op.execute(
             f'GRANT SELECT, INSERT, UPDATE ON core."{table}" TO {LEDGER_ROLE}'
         )
-    op.execute(
-        f"GRANT SELECT ON core.operation_version TO {APP_ROLE}, {LEDGER_ROLE}"
-    )
+    for schema, table in GLOBAL_TABLES:
+        op.execute(f"GRANT SELECT ON {schema}.{table} TO {APP_ROLE}, {LEDGER_ROLE}")
     op.execute(f"GRANT INSERT ON core.operation_version TO {APP_ROLE}")
+    # The tier names are fixed; the bindings under them are edited at runtime.
+    op.execute(f"GRANT INSERT, UPDATE ON core.tier, core.tier_binding TO {APP_ROLE}")
 
 
 def downgrade() -> None:
-    for table in reversed(CREATE_ORDER):
-        op.drop_table(table, schema="core")
+    for schema, table in reversed(CREATE_ORDER):
+        op.drop_table(table, schema=schema)
     op.execute("DROP SCHEMA mod_skills")
     op.execute("DROP SCHEMA core")
     op.execute(f"DROP ROLE IF EXISTS {LEDGER_ROLE}")
