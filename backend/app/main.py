@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 ROLES = ("serve", "work", "tick", "seed")
 
-# The ASGI target the `serve` role will be started against; empty until wave 3.
+# The ASGI target the `serve` role will be started against; empty until wave 9.
 app = FastAPI()
 
 
