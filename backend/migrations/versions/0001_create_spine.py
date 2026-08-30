@@ -460,7 +460,7 @@ def upgrade() -> None:
             server_default=NOW,
         ),
         sa.CheckConstraint(
-            "state IN ('queued', 'running', 'waiting_approval', 'succeeded',"
+            "state IN ('queued', 'running', 'waiting_approval', 'done',"
             " 'failed', 'cancelled')",
             name="ck_run_state",
         ),
