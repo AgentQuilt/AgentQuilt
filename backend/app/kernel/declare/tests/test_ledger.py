@@ -12,7 +12,13 @@ import pytest
 from sqlalchemy import Select, func, select, text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
-from app.kernel.declare.ledger import Append, Commit, VersionConflictError, append, commit
+from app.kernel.declare.ledger import (
+    Append,
+    Commit,
+    VersionConflictError,
+    append,
+    commit,
+)
 from app.kernel.declare.models import Event, OperationVersion, StreamHead
 from app.kernel.store.service import session
 from tests.kit import Scope, two_principals
@@ -136,9 +142,12 @@ async def test_expected_version_mismatch_rolls_back(
         await commit(scoped, _request(principal, aggregate, 1, key="second"))
         await scoped.commit()
         assert await scoped.scalar(_event_count(aggregate)) == 2
-        assert await scoped.scalar(
-            select(StreamHead.version).where(StreamHead.aggregate_id == aggregate)
-        ) == 2
+        assert (
+            await scoped.scalar(
+                select(StreamHead.version).where(StreamHead.aggregate_id == aggregate)
+            )
+            == 2
+        )
 
 
 async def test_retry_returns_stored_action(
