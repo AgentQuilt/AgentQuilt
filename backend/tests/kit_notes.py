@@ -118,7 +118,7 @@ def notes_registry() -> Registry:
 async def grant(
     session: AsyncSession, principal_id: UUID, operation_name: str, level: str
 ) -> None:
-    """One grant row, until `identity.effective_grants` exists in wave 5."""
+    """One grant row, read back by `identity.effective_grants`."""
     await session.execute(
         _GRANT,
         {
