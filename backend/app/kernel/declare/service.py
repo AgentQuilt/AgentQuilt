@@ -93,7 +93,7 @@ async def dispatch(ctx: CallContext, call: Call) -> Outcome:
     try:
         args = op.args_model.model_validate(call.args)
     except ValidationError as invalid:
-        return await _deny(ctx, call, "invalid_args", {"errors": invalid.errors()})
+        return await _deny(ctx, call, "invalid_args", {"errors": invalid.errors(include_url=False, include_context=False)})
 
     if op.mode == "read":
         return await _read(ctx, op, args)

@@ -7,6 +7,7 @@ a process is far enough along to have one.
 from __future__ import annotations
 
 import importlib
+from typing import cast
 
 import pytest
 from pydantic import BaseModel
@@ -84,5 +85,6 @@ def test_sync_function_rejected() -> None:
         raise NotImplementedError
 
     declares = Declares(mode="write", reversal="irreversible")
+    sync_handler = cast(Handler, handler)
     with pytest.raises(TypeError, match="async"):
-        Registry().operation("note.write_note", declares)(handler)
+        Registry().operation("note.write_note", declares)(sync_handler)
