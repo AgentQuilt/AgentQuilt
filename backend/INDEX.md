@@ -4,6 +4,7 @@
 - `app/kernel/` — the kernel modules and `ports/`; `KERNEL.md` maps them, `FROZEN.md` states the change protocol.
 - `app/modules/` — buildable modules on top of the kernel; empty until wave 9.
 - `migrations/` — the Alembic async chain (`env.py`) and `lint.py`, the naming check pytest runs.
+- `migrations/versions/` — `0001_create_spine.py`: schemas `core` and `mod_skills`, the two roles, the tenant and ledger tables, RLS and grants.
 - `tests/` — real Postgres through testcontainers; no DB mocks.
 
 Gates, from this directory: `uv run ruff check .`, `uv run pyright`, `uv run pytest` (traps in AGENTS.md, Gates).

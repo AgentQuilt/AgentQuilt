@@ -4,7 +4,7 @@ The six kernel modules and their interfaces. One line each until the wave that b
 
 ## store
 
-interface: not built yet, wave 2.
+interface: not built yet, wave 2. schema: 0001, wave 1.
 
 ## identity
 
