@@ -3,9 +3,10 @@
 - `app/main.py` — the `agentquilt serve | work | tick | seed` entrypoint (one image, four roles).
 - `app/kernel/` — the kernel modules and `ports/`; `KERNEL.md` maps them, `FROZEN.md` states the change protocol.
 - `app/kernel/store/` — the scoped session, the five mapped spine tables and `seed()`; `MODULE.md` states the interface.
+- `app/kernel/declare/` — the ledger: the five mapped ledger tables and `commit()` / `append()`; `MODULE.md` states the interface.
 - `app/modules/` — buildable modules on top of the kernel; empty until wave 9.
 - `migrations/` — the Alembic async chain (`env.py`) and `lint.py`, the naming check pytest runs.
-- `migrations/versions/` — `0001_create_spine.py`: schemas `core` and `mod_skills`, the two roles, the tenant and ledger tables, RLS and grants.
+- `migrations/versions/` — `0001_create_spine.py`: schemas `core` and `mod_skills`, the two roles, the tenant and ledger tables, RLS and grants. `0002_event_action_pair.py`: `event.action_id`, its deferred foreign key and the check that pairs an operation-commit event with exactly one action.
 - `conftest.py` — the session-wide Postgres container and `migrated_url`, shared by `tests/` and every `app/kernel/*/tests/`.
 - `tests/` — real Postgres through testcontainers; no DB mocks. `kit.py` holds the fixtures the kernel test folders share.
 
