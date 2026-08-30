@@ -18,7 +18,9 @@ NAMED_RE = re.compile(
 )
 # Singular last words that end in s, and irregular plurals that do not.
 SINGULAR_ENDING_IN_S = {"status", "address", "alias", "access", "basis", "analysis"}
-IRREGULAR_PLURALS = {"people", "children", "men", "women", "data", "criteria", "media", "indices"}
+IRREGULAR_PLURALS = {
+    "people", "children", "men", "women", "data", "criteria", "media", "indices",
+}
 PREFIXES = {
     "create_index": "ix_",
     "create_unique_constraint": "uq_",
@@ -32,7 +34,8 @@ def check_source(name: str, source: str) -> list[str]:
     problems: list[str] = []
     for table in TABLE_RE.findall(source):
         last = table.split("_")[-1]
-        if (last.endswith("s") and last not in SINGULAR_ENDING_IN_S) or last in IRREGULAR_PLURALS:
+        plural_s = last.endswith("s") and last not in SINGULAR_ENDING_IN_S
+        if plural_s or last in IRREGULAR_PLURALS:
             problems.append(
                 f"{name}: table '{table}' reads as plural; table names are singular"
                 " (a singular word ending in s goes in SINGULAR_ENDING_IN_S)"

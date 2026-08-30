@@ -2,6 +2,9 @@ name: agentquilt
 
 x-app: &app
   image: agentquilt:dev
+  build:
+    context: .
+    dockerfile: Dockerfile
   environment:
     DATABASE_URL: postgresql+psycopg://agentquilt:agentquilt@db:5432/agentquilt
   depends_on:
@@ -24,14 +27,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-
-  # Builds the one image the three role services run; never started itself.
-  app:
-    image: agentquilt:dev
-    build:
-      context: .
-      dockerfile: Dockerfile
-    profiles: [build]
 
   serve:
     <<: *app
