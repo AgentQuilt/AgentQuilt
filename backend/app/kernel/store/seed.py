@@ -35,11 +35,15 @@ async def seed() -> list[SeededOrg]:
         org_id, system_principal_id, user_id = uuid4(), uuid4(), uuid4()
         token = secrets.token_urlsafe(32)
         async with session(org_id, system_principal_id) as scoped:
+            # No relationships are mapped, so the unit of work has no dependency
+            # graph and orders inserts by mapper name: the parents flush first.
             scoped.add(Org(id=org_id, name=name))
+            await scoped.flush()
+            scoped.add(User(id=user_id, org_id=org_id, display_name=f"{name} owner"))
+            await scoped.flush()
             scoped.add(
                 Principal(id=system_principal_id, org_id=org_id, class_="system")
             )
-            scoped.add(User(id=user_id, org_id=org_id, display_name=f"{name} owner"))
             scoped.add(
                 Principal(id=uuid4(), org_id=org_id, class_="user", user_id=user_id)
             )
