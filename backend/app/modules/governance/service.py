@@ -42,6 +42,12 @@ async def decide_approval(ctx: CallContext, args: DecideApproval) -> Json:
     """Approve or reject one parked call, and re-queue the step it parked."""
     # Who may decide comes first: an unauthorized decider learns nothing, not
     # even whether the approval exists or was already answered.
+    # ADR-0004 closed the self-approval door for agents; a step's dispatch runs
+    # as the system principal, so the class check alone would leave it open — and
+    # a step deciding another run's approval locks a foreign run row, the one
+    # cross-run path that could deadlock two workers (runs/MODULE.md lock order).
+    if ctx.run_id is not None:
+        raise ValueError(f"{NAME}: an approval is decided from outside any run")
     decider = await ctx.session.get(Principal, ctx.principal_id)
     if decider is None or decider.class_ not in DECIDERS:
         raise ValueError(f"{NAME}: a principal of class {DECIDERS} decides an approval")

@@ -121,7 +121,16 @@ async def _decide(
     if decision == "reject":
         args["reason"] = "not this note"
     outcome = await dispatch(
-        _ctx(scoped, scope, process_registry, uuid4(), clock),
+        # A decision comes from outside any run (ADR-0004): the web thread or
+        # tick, never a step - governance refuses a deciding ctx that carries one.
+        CallContext(
+            session=scoped,
+            principal_id=scope[1],
+            run_id=None,
+            step_no=None,
+            registry=process_registry,
+            clock=clock.now,
+        ),
         Call(
             operation_name=DECIDE,
             args=args,
