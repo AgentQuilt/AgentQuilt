@@ -12,10 +12,11 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass
-from uuid import NAMESPACE_URL, UUID, uuid5
+from datetime import datetime
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from pydantic import BaseModel, ValidationError
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,14 +29,23 @@ from app.kernel.declare.ledger import (
 )
 from app.kernel.declare.models import Action, Event, IdempotencyKey, Json
 from app.kernel.declare.registry import CallContext, Operation
-
-# Wave 5 replaces this with `identity.effective_grants`, which resolves roles and
-# scope; until then a grant is one row read straight off the table.
-_GRANT = text(
-    'SELECT level FROM core."grant"'
-    " WHERE principal_id = :principal AND operation_name = :name LIMIT 1"
+from app.kernel.identity.models import Approval
+from app.kernel.identity.service import (
+    Consume,
+    Park,
+    args_hash,
+    consume_approval,
+    effective_grants,
+    park_approval,
 )
-_REFUSAL = {None: "no_grant", "never": "never", "asks_first": "approval_required"}
+
+# `asks_first` is not here: it is a grant to ask, and the approval decides.
+_REFUSAL = {None: "no_grant", "never": "never"}
+_GRANTED = ("may_use", "asks_first")
+
+
+class _UnapprovedError(Exception):
+    """No open approval for this call; the savepoint's writes go back with it."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +81,15 @@ class Denied:
     event: Event
 
 
-Outcome = Committed | Replayed | Denied
+@dataclass(frozen=True, slots=True)
+class WaitingApproval:
+    """A person has been asked. The reservation stays open and the step parks."""
+
+    approval_id: UUID
+    expires_at: datetime
+
+
+Outcome = Committed | Replayed | Denied | WaitingApproval
 
 
 async def dispatch(ctx: CallContext, call: Call) -> Outcome:
@@ -86,8 +104,9 @@ async def dispatch(ctx: CallContext, call: Call) -> Outcome:
     if stored is not None:
         return Replayed(stored)
 
-    level = await _grant_level(ctx.session, ctx.principal_id, call.operation_name)
-    if level != "may_use":
+    grants = await effective_grants(ctx.session, ctx.principal_id)
+    level = grants.get(call.operation_name)
+    if level not in _GRANTED:
         return await _deny(ctx, call, _REFUSAL[level], {"grant_level": level})
 
     try:
@@ -97,7 +116,7 @@ async def dispatch(ctx: CallContext, call: Call) -> Outcome:
         return await _deny(ctx, call, "invalid_args", {"errors": errors})
 
     if op.mode == "read":
-        return await _read(ctx, op, args)
+        return await _read(ctx, call, op, args, level)
     return await _write(ctx, call, op, args, level)
 
 
@@ -109,10 +128,17 @@ async def _write(
 
     version_id = ctx.registry.version_id(op)
     aggregate = _aggregate(op, args)
+    action_id = uuid4()
     try:
         # The savepoint is what lets a conflict lose the body's writes and keep
-        # the transaction: `commit()` raises before it has written anything.
+        # the transaction: `commit()` raises before it has written anything. The
+        # consume is inside it too, so a conflict leaves the approval open.
         async with ctx.session.begin_nested():
+            approval_id = None
+            if level == "asks_first":
+                approval_id = await _spend(ctx, call, version_id, action_id)
+                if approval_id is None:
+                    raise _UnapprovedError
             result = await op.fn(ctx, args)
             action = await commit(
                 ctx.session,
@@ -134,6 +160,8 @@ async def _write(
                     compensator_ref=op.compensator,
                     # A compensator's args model accepts its target's result.
                     compensator_args=result,
+                    action_id=action_id,
+                    approval_id=approval_id,
                 ),
             )
     except VersionConflictError as conflict:
@@ -144,11 +172,18 @@ async def _write(
             {"expected": conflict.expected, "actual": conflict.actual},
             aggregate,
         )
+    except _UnapprovedError:
+        return await _park(ctx, call, version_id)
     return Committed(action, result)
 
 
-async def _read(ctx: CallContext, op: Operation, args: BaseModel) -> Committed:
+async def _read(
+    ctx: CallContext, call: Call, op: Operation, args: BaseModel, level: str
+) -> Outcome:
     """A read commits nothing and bumps no version; it leaves an audit event."""
+    version_id = ctx.registry.version_id(op)
+    if level == "asks_first" and await _spend(ctx, call, version_id, None) is None:
+        return await _park(ctx, call, version_id)
     result = await op.fn(ctx, args)
     kind, aggregate_id = _aggregate(op, args)
     await append(
@@ -203,6 +238,51 @@ async def _deny(
     return Denied(reason, event)
 
 
+async def _spend(
+    ctx: CallContext, call: Call, version_id: str, action_id: UUID | None
+) -> UUID | None:
+    """The open approval this call spends, or None when there is none to spend."""
+    return await consume_approval(
+        ctx.session,
+        Consume(
+            granted_to=ctx.principal_id,
+            operation_version_id=version_id,
+            args_hash=args_hash(version_id, call.args),
+            action_id=action_id,
+            now=ctx.clock(),
+        ),
+    )
+
+
+async def _park(ctx: CallContext, call: Call, version_id: str) -> Outcome:
+    """Ask a person, unless this continuation was already answered."""
+    if ctx.run_id is None or ctx.step_no is None:
+        # An approval is addressed by the continuation it resumes at, so a call
+        # made outside a run has nowhere to park and is refused instead.
+        detail: Json = {"grant_level": "asks_first"}
+        return await _deny(ctx, call, "approval_required", detail)
+    parked = await park_approval(
+        ctx.session,
+        Park(
+            granted_to=ctx.principal_id,
+            operation_version_id=version_id,
+            args_hash=args_hash(version_id, call.args),
+            run_id=ctx.run_id,
+            step_no=ctx.step_no,
+            tool_call_id=call.tool_call_id,
+            now=ctx.clock(),
+        ),
+    )
+    if isinstance(parked, Approval):
+        return WaitingApproval(parked.id, parked.expires_at)
+    return await _deny(
+        ctx,
+        call,
+        "approval_unavailable",
+        {"state": parked.state, "reason": parked.reason},
+    )
+
+
 async def _reserve(session: AsyncSession, name: str, key: str) -> Action | None:
     """Claim the key before the body runs; the stored action means a replay."""
     await session.execute(
@@ -223,12 +303,6 @@ async def _reserve(session: AsyncSession, name: str, key: str) -> Action | None:
             IdempotencyKey.idempotency_key == key,
         )
     )
-
-
-async def _grant_level(
-    session: AsyncSession, principal_id: UUID, name: str
-) -> str | None:
-    return await session.scalar(_GRANT, {"principal": principal_id, "name": name})
 
 
 def _aggregate(op: Operation, args: BaseModel) -> tuple[str, UUID]:

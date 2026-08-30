@@ -46,6 +46,11 @@ class Commit:
     decision_trace: Json
     compensator_ref: str | None = None
     compensator_args: Json | None = None
+    # `action` is append-only, so an action that names the approval it spent has
+    # to know both ids before its INSERT: dispatch names the action here, then
+    # consumes the approval against that id inside the same savepoint.
+    action_id: UUID | None = None
+    approval_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +103,7 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
     # The reads above are the app role's; only the writes need the ledger writer,
     # and a flush that fails leaves a dead transaction whose rollback resets the role.
     await session.execute(_WRITER)
-    action_id = uuid4()
+    action_id = request.action_id or uuid4()
     event = Event(
         org_id=org,
         kind="operation_commit",
@@ -136,6 +141,7 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
         org_id=org,
         event_id=event.id,
         operation_version_id=request.operation_version_id,
+        approval_id=request.approval_id,
         idempotency_key=request.idempotency_key,
         decision_trace=request.decision_trace,
         compensator_ref=request.compensator_ref,

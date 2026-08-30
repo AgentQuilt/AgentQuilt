@@ -15,6 +15,7 @@ import json
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Literal, get_type_hints
 from uuid import UUID
 
@@ -35,6 +36,10 @@ _READ_VERBS = ("get_", "list_", "search_")
 _SEE = "see naming-conventions.md, Operations, events, skills"
 
 
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
 @dataclass(frozen=True, slots=True)
 class CallContext:
     """What an operation's body may reach; here, so nothing imports back."""
@@ -44,6 +49,9 @@ class CallContext:
     run_id: UUID | None
     step_no: int | None
     registry: Registry
+    # The only wall clock dispatch reads: an approval's expiry is compared to
+    # this, so a test drives expiry instead of waiting three days for it.
+    clock: Callable[[], datetime] = _now
 
 
 # The second parameter is the operation's own args model; `Any` is what lets a

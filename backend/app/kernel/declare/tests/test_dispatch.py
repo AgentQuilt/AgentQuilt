@@ -133,13 +133,23 @@ async def test_denied_call_writes_denial_event(
         assert await scoped.get(Event, outcome.event.id) is None
 
 
-async def test_asks_first_is_a_denial_this_wave(
+async def test_asks_first_without_a_run_is_denied(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
+    """An approval is addressed by a continuation, so a call outside a run cannot park.
+
+    What an `asks_first` call inside a run does is `tests/test_approval_flow.py`.
+    """
     org, principal = scopes[1]
     async with session(org, principal) as scoped:
         outcome = await dispatch(
-            _ctx(scoped, principal, notes, uuid4()),
+            CallContext(
+                session=scoped,
+                principal_id=principal,
+                run_id=None,
+                step_no=None,
+                registry=notes,
+            ),
             Call(operation_name=LIST, args={}, tool_call_id="tc-asks"),
         )
         await scoped.commit()
