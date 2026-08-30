@@ -27,6 +27,7 @@ from app.kernel.runs.service import (
     send,
 )
 from app.kernel.store.models import AgentDefinition, Run, Skill, SkillVersion
+from app.kernel.store.seed import UNDOABLE_OPERATION
 from app.kernel.store.service import session
 from tests.kit import START, Scope, two_principals
 from tests.kit_notes import grant
@@ -73,7 +74,7 @@ async def test_user_creates_run(scopes: tuple[Scope, Scope]) -> None:
         await scoped.commit()
 
     assert run.capability_ceiling == {
-        "operations": {WRITE: "may_use"},
+        "operations": {UNDOABLE_OPERATION: "asks_first", WRITE: "may_use"},
         "memory_scope": definition.memory_scope,
     }
     async with session(*scope) as scoped:

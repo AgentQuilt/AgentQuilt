@@ -60,10 +60,11 @@ class Instructions:
 class InstructionsContributor:
     """L1 the org's text, L2 the agent's soul, L3 the personal profile (ADR-0016).
 
-    Phase 1 stores neither org-instruction text nor a curated profile, so L1
-    renders from `core.org.name` and L3 from the acting principal's
-    `core.user.display_name`. The slots, their order and their versions do not
-    change when a real store lands behind either.
+    The three texts are `modules/memory`'s data (its MODULE.md): in Phase 1 they
+    are rows on `core.agent_definition` and `core.user`, so L1 renders from
+    `core.org.name` and L3 from the acting principal's `core.user.display_name`.
+    The slots, their order and their versions do not change when that module
+    grows a store of its own.
     """
 
     owner = "instructions"

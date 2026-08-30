@@ -8,6 +8,7 @@ debugged.
 
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass, replace
 from uuid import UUID, uuid4
 
@@ -51,12 +52,13 @@ async def _get_note(ctx: CallContext, args: Args) -> Json:
 
 
 def _registry() -> Registry:
-    """Two operations, one of which the fixture's principal is granted."""
+    """Two PROD operations, one of which the run's ceiling allows."""
     registry = Registry()
     registry.operation(
-        "note.write_note", Declares(mode="write", reversal="irreversible")
+        "note.write_note",
+        Declares(mode="write", reversal="irreversible", stage="PROD"),
     )(_write_note)
-    registry.operation("note.get_note", Declares(mode="read"))(_get_note)
+    registry.operation("note.get_note", Declares(mode="read", stage="PROD"))(_get_note)
     return registry
 
 
@@ -69,7 +71,12 @@ class Setup:
 
 @pytest.fixture(scope="module")
 async def setup(migrated_url: str) -> Setup:
-    """One org, its user principal, one skill bound to one run."""
+    """One org, its user principal, one skill bound to one run.
+
+    `app.modules` is imported for its side effect: L4 is `modules/surfaces`'
+    since the owner's D2 fell due, so a full prefix needs the modules loaded.
+    """
+    importlib.import_module("app.modules")
     (org_id, system_id), _ = await two_principals(migrated_url)
     async with session(org_id, system_id) as scoped:
         agent_id = (await scoped.scalars(select(AgentDefinition.id))).one()
@@ -113,7 +120,8 @@ async def setup(migrated_url: str) -> Setup:
             state="running",
             budget_cap_tokens=200_000,
             prefix_key="",
-            capability_ceiling={},
+            # ADR-0015: what L5 renders is this, not the acting principal's grants.
+            capability_ceiling={"operations": {"note.write_note": "may_use"}},
             prefix_profile="personal",
         )
         scoped.add(run)
@@ -143,6 +151,9 @@ async def test_prefix_key_stable_across_turns(setup: Setup) -> None:
         "L5",
         "L6",
     ]
+    # L4 is in the list only because importing `app.modules` registered its
+    # contributor: the slot is the module's, not the kernel's.
+    assert next(one.owner for one in first.prefix if one.slot == "L4") == "surfaces"
 
 
 async def test_manifest_persisted_per_call(setup: Setup) -> None:
@@ -159,7 +170,8 @@ async def test_manifest_persisted_per_call(setup: Setup) -> None:
     assert manifest.effective_scope["grants"] == {"note.write_note": "may_use"}
 
 
-async def test_tool_block_carries_only_granted_operations(setup: Setup) -> None:
+async def test_tool_block_carries_only_the_ceiling(setup: Setup) -> None:
+    """The core tool set is the run's ceiling, fixed for the life of the prefix."""
     assembled = await _assemble(setup, 4)
     tools = next(layer for layer in assembled.prefix if layer.slot == "L5")
     assert "note.write_note" in tools.body

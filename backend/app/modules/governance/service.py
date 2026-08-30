@@ -1,27 +1,30 @@
-"""The first module operation: a person answers one parked call.
+"""What a person does to a call the agent already made, or is waiting to make.
 
-Deciding is itself a declared operation, so the answer lands in the ledger with
+Both are declared operations, so an answer and a reversal land in the ledger with
 the same action, grant check and idempotency key as any other write, and nothing
-about approvals needs a second write path. The decision moves the approval and
-then, in the same transaction, hands the run back to the queue it parked from.
+about approvals or undo needs a second write path. Deciding moves the approval and
+hands the run back to the queue it parked from, in the same transaction; undoing
+starts a new run and lets the worker make the compensating call.
 """
 
 from __future__ import annotations
 
+import json
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel
 from sqlalchemy import func, select, update
 
-from app.kernel.declare.models import Json
+from app.kernel.declare.models import Action, Json, OperationVersion
 from app.kernel.declare.registry import CallContext, Declares, registry
 from app.kernel.identity.models import Approval
 from app.kernel.runs.models import StepQueue
-from app.kernel.runs.service import QUEUE_TAG
-from app.kernel.store.models import Principal, Run
+from app.kernel.runs.service import QUEUE_TAG, create, post
+from app.kernel.store.models import AgentDefinition, Principal, Run
 
 NAME = "governance.decide_approval"
+UNDO = "governance.undo_action"
 # Only a person or the system decides an approval (ADR-0004): an agent that could
 # approve its own parked call is the whole point of the gate defeated.
 DECIDERS = ("user", "system")
@@ -93,3 +96,61 @@ async def decide_approval(ctx: CallContext, args: DecideApproval) -> Json:
         )
         await ctx.session.flush()
     return {"decided": True, "state": approval.state, "run_queued": queued is not None}
+
+
+class UndoAction(BaseModel):
+    action_id: UUID
+
+
+@registry.operation(UNDO, Declares(mode="write", reversal="irreversible"))
+async def undo_action(ctx: CallContext, args: UndoAction) -> Json:
+    """Undo one action by running its compensator in a new run."""
+    # Undoing is a person's call on a finished action, so it comes from outside
+    # any run, the way deciding an approval does.
+    if ctx.run_id is not None:
+        raise ValueError(f"{UNDO}: an action is undone from outside any run")
+    target = (
+        await ctx.session.execute(
+            select(
+                OperationVersion.operation_name,
+                Action.compensator_ref,
+                Action.compensator_args,
+            )
+            .join(Action, Action.operation_version_id == OperationVersion.id)
+            .where(Action.id == args.action_id)
+        )
+    ).first()
+    if target is None:
+        return {"undone": False, "reason": f"no action {args.action_id}"}
+    name, compensator, compensator_args = target
+    if compensator is None:
+        # The registry's own rule: only a reversible operation names a
+        # compensator (`declare/registry.py`), so a missing one is the
+        # declaration saying this cannot be taken back.
+        return {
+            "undone": False,
+            "reason": f"{name} is irreversible: it declares no compensator",
+        }
+
+    # A new run, not this transaction: the compensator is a declared call like
+    # any other, so the worker makes it under its own ceiling and its own
+    # approval gate. Phase 1 seeds one agent definition per org, and the undo
+    # runs as that agent.
+    definition = (
+        await ctx.session.scalars(
+            select(AgentDefinition).order_by(AgentDefinition.version.desc()).limit(1)
+        )
+    ).one()
+    run = await create(ctx.session, definition, None)
+    await post(
+        ctx.session,
+        run.id,
+        "steer",
+        {
+            "text": (
+                f"Undo action {args.action_id} ({name}). Call {compensator} with"
+                f" these arguments: {json.dumps(compensator_args, sort_keys=True)}"
+            )
+        },
+    )
+    return {"undone": True, "run_id": str(run.id), "compensator": compensator}

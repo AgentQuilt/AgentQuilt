@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.dialects.postgresql import insert
 
+from app.kernel.identity.models import Grant
 from app.kernel.model.models import TierBinding
 from app.kernel.store.models import AgentDefinition, Org, Principal, User, UserToken
 from app.kernel.store.service import session
@@ -30,6 +31,10 @@ EXECUTOR_BINDING = {
     "effort": None,
     "version": 1,
 }
+# The one operation the seeded agent may propose, and so the one action a person
+# can undo. Written as a string rather than imported, because `store` is kernel
+# and `skills.activate_version` is a buildable module's declaration.
+UNDOABLE_OPERATION = "skills.activate_version"
 SOUL_TEXT = (
     "You are the assistant of this organization.\n"
     "You answer from what the organization knows, and you say when it does not."
@@ -80,6 +85,18 @@ async def seed() -> list[SeededOrg]:
                     tier="executor",
                     budget_cap_tokens=200_000,
                     memory_scope="org",
+                )
+            )
+            # After the principals: mapper name orders this batch's inserts, and
+            # the grant points at one of them.
+            await scoped.flush()
+            scoped.add(
+                Grant(
+                    id=uuid4(),
+                    org_id=org_id,
+                    principal_id=system_principal_id,
+                    operation_name=UNDOABLE_OPERATION,
+                    level="asks_first",
                 )
             )
             await scoped.commit()

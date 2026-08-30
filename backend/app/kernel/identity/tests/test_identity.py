@@ -23,7 +23,7 @@ from app.kernel.identity.service import (
     resolve,
 )
 from app.kernel.store.models import UserToken
-from app.kernel.store.seed import SeededOrg, seed
+from app.kernel.store.seed import UNDOABLE_OPERATION, SeededOrg, seed
 from app.kernel.store.service import session
 from tests.kit import START, FakeClock
 from tests.kit_notes import notes_registry
@@ -116,6 +116,8 @@ async def test_effective_grants_maps_rows(org: SeededOrg) -> None:
             )
         await scoped.flush()
         assert await effective_grants(scoped, org.system_principal_id) == {
+            # The seeded grant is in the map too: it is a row like any other.
+            UNDOABLE_OPERATION: "asks_first",
             "note.write_note": "asks_first",
             "note.x": "never",
         }

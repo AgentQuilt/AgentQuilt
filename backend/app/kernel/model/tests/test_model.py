@@ -113,7 +113,7 @@ async def _run_row(setup: Setup, budget_cap_tokens: int) -> Run:
         state="running",
         budget_cap_tokens=budget_cap_tokens,
         prefix_key="",
-        capability_ceiling={},
+        capability_ceiling={"operations": {OPERATION: "may_use"}},
         prefix_profile="personal",
     )
     async with session(setup.org_id, setup.principal_id) as scoped:
@@ -125,9 +125,9 @@ async def _run_row(setup: Setup, budget_cap_tokens: int) -> Run:
 async def _turn(setup: Setup, run: Run) -> AssembledTurn:
     """The prompt: one operation in the tool block, the intake in the envelope."""
     registry = Registry()
-    registry.operation(OPERATION, Declares(mode="write", reversal="irreversible"))(
-        _write_note
-    )
+    registry.operation(
+        OPERATION, Declares(mode="write", reversal="irreversible", stage="PROD")
+    )(_write_note)
     async with session(setup.org_id, setup.principal_id) as scoped:
         assembled = await assemble(scoped, run, step_no=1, call=CALL, registry=registry)
         await scoped.commit()

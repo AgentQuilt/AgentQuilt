@@ -3,9 +3,10 @@
 Written out rather than reflected, so a drift between the mapping and the chain
 fails `test_models_match_migration` instead of surfacing at runtime. No
 relationships: the session is scoped to one org, and a join is written where it
-is needed. `mod_skills`' two tables are here rather than under a module so that
-`core.run`'s foreign key resolves inside one metadata; they move when
-`modules/skills` lands.
+is needed. `mod_skills`' two tables are here rather than under `modules/skills`
+so that `core.run`'s foreign key resolves inside one metadata and neither the
+`skills` context contributor nor `runs.create` has to import a buildable module;
+what is done with them is that module's (`app/modules/skills/MODULE.md`).
 """
 
 from __future__ import annotations

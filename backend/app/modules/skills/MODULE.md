@@ -1,0 +1,8 @@
+# skills
+
+- Interface: `directory(session, stage=...)` — the skill versions a run at that stage may bind, one row per version with its skill's name; `activate(session, skill_version_id, stage)` — move a version to a stage and return the stage it left. One declared operation, `skills.activate_version(skill_version_id, stage)`, over the same `activate`.
+- Tables: `mod_skills.skill` and `mod_skills.skill_version`, mapped in `kernel/store/models.py`. They stay there because `core.run.skill_version_id` is a foreign key onto `skill_version` and two kernel modules read them (the `skills` context contributor's L6 directory and D1 body, and `runs.create`'s ADR-0012 stage check); mapping them here would make the kernel import a buildable module. No new migration and no new table.
+- Inline declares no operations (ADR-0013): `activate` refuses an `inline` version whose `operations` is non-empty, which is the rule's first negative fixture. Only a delegated skill declares operations, and it runs as its own sub-run under its own prefix key.
+- Reversal: activation is its own compensator. The action records the stage the version left (`compensator_args` is the operation's result, `declare/service.py`), so `governance.undo_action` runs the same call with that stage and the version is back where it was. No aggregate is declared: a skill version's id is text, and ADR-0017's `expected_version` needs a UUID stream.
+- Stage `PROD`, unlike the two `governance` operations: this is the operation an agent proposes inside a run, so it belongs to the core tool set L5 renders (ADR-0013).
+- Not built: publishing a skill version (the seed and the tests write the rows), delegated sub-runs, and any read of the directory as a declared operation.
