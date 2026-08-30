@@ -47,14 +47,16 @@ class DecideApproval(BaseModel):
 @registry.operation(NAME, Declares(mode="write", reversal="irreversible"))
 async def decide_approval(ctx: CallContext, args: DecideApproval) -> Json:
     """Approve or reject one parked call, and re-queue the step it parked."""
+    # Who may decide comes first: an unauthorized decider learns nothing, not
+    # even whether the approval exists or was already answered.
+    decider = await ctx.session.get(Principal, ctx.principal_id)
+    if decider is None or decider.class_ not in DECIDERS:
+        raise ValueError(f"{NAME}: a principal of class {DECIDERS} decides an approval")
+
     # Under the row lock, so two deciders answering at once cannot both move it.
     approval = await ctx.session.get(Approval, args.approval_id, with_for_update=True)
     if approval is None or approval.state != "requested":
         return {"decided": False, "state": approval.state if approval else None}
-
-    decider = await ctx.session.get(Principal, ctx.principal_id)
-    if decider is None or decider.class_ not in DECIDERS:
-        raise ValueError(f"{NAME}: a principal of class {DECIDERS} decides an approval")
 
     if args.decision == "approve":
         approval.state = "open"
