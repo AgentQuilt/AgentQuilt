@@ -1,7 +1,6 @@
 ---
 name: codex-review
 description: Run a Codex peer review of a wave diff or a plan through the fail-closed verdict gate. Fable fires it after every implementation wave and, for plans, after plan-gate.
-disable-model-invocation: true
 ---
 
 # codex-review

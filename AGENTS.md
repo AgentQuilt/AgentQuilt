@@ -70,6 +70,7 @@ Fable orchestrates and plans · Opus sub-agents execute · Codex peer-reviews.
 |Task|Engine|
 |-|-|
 |Orchestration, planning, folding review findings, parent verification, merges, final decisions|Fable (main session)|
+|System-prompt changes and prompt fine-tuning — agent souls, prompt layers, any system-prompt text, factory or product|Fable, main session or Fable sub-agents; never Opus (owner, 2026-08-28)|
 |Investigation, scoping, bulk reading, implementation waves, browser work, doc/spec execution|Opus sub-agents (worktree isolation for anything non-trivial)|
 |Peer review of every plan and every diff|Codex (`codex exec -m gpt-5.6-sol`, diff inlined). The in-house `reviewer` agent is the fallback when Codex is down and the reviewer of non-diff artefacts.|
 

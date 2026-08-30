@@ -14,5 +14,5 @@ paths: [".claude/**/*.md", "AGENTS.md", "REVIEW.md"]
 - Use the glossary's word as the leading word; never coin.
 - Write vault paths as `$V/...`; `$V` is defined once, in AGENTS.md, and never restated.
 - Give a project skill a name no user-level skill (`~/.claude/skills/`) uses; the project copy would lose.
-- Skills only Fable or the owner fire carry `disable-model-invocation: true`; the implementer's self-checks stay model-invocable.
+- `disable-model-invocation: true` blocks every model invocation, Fable's included, so only a skill the owner alone fires carries it; a skill Fable fires stays model-invocable, its trigger stated in the description (owner, 2026-08-27).
 - Sentence case for emphasis; plain imperatives.

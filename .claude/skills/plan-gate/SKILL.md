@@ -1,7 +1,6 @@
 ---
 name: plan-gate
 description: Gate a plan before Codex sees it: premises, alternatives, existing-code leverage, pass/fail acceptance criteria, executability score. Fable fires it on every plan written after wave 2.
-disable-model-invocation: true
 ---
 
 # plan-gate

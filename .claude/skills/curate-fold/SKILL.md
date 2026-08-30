@@ -1,7 +1,6 @@
 ---
 name: curate-fold
 description: Decides each open suggestions-file entry, drains the curator's inbox into the memory zones, and routes accepted factory changes into a wave. Fable fires it at the start of every wave.
-disable-model-invocation: true
 ---
 
 # curate-fold

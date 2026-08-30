@@ -1,7 +1,6 @@
 ---
 name: land-gate
 description: Pre-merge check that a wave branch carries fresh verification evidence, merged-state gates, matching docs and a clean worktree. Fable fires it after codex-review PASS; not a review.
-disable-model-invocation: true
 ---
 
 # land-gate

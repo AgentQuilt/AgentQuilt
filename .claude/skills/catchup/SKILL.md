@@ -1,7 +1,6 @@
 ---
 name: catchup
 description: Re-read the standing context (AGENTS.md, decision-log head, open questions, latest session log, branch diff) and report; changes nothing. Fable fires it at session start or after a compaction.
-disable-model-invocation: true
 ---
 
 # catchup

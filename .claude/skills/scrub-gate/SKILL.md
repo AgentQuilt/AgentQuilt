@@ -1,7 +1,6 @@
 ---
 name: scrub-gate
 description: Grep files at the sink for provenance leaks with the vault's pre-tag pattern, then print the by-eye read list. Fable or the owner fire it before anything goes public.
-disable-model-invocation: true
 ---
 
 # scrub-gate

@@ -1,7 +1,6 @@
 ---
 name: handoff
 description: Save a half-page session handoff to the vault, or resume from the latest one with a branch check. Fable or the owner fire it at a session boundary.
-disable-model-invocation: true
 ---
 
 # handoff
