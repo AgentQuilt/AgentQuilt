@@ -578,7 +578,7 @@ def upgrade() -> None:
         op.execute(f"GRANT SELECT ON {schema}.{table} TO {APP_ROLE}, {LEDGER_ROLE}")
     op.execute(f"GRANT INSERT ON core.operation_version TO {APP_ROLE}")
     # The tier names are fixed; the bindings under them are edited at runtime.
-    op.execute(f"GRANT INSERT, UPDATE ON core.tier, core.tier_binding TO {APP_ROLE}")
+    op.execute(f"GRANT INSERT, UPDATE ON core.tier_binding TO {APP_ROLE}")
 
 
 def downgrade() -> None:
