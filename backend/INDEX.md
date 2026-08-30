@@ -7,5 +7,4 @@
 - `tests/` — real Postgres through testcontainers; no DB mocks.
 
 Gates, from this directory: `uv run ruff check .`, `uv run pyright`, `uv run pytest` (traps in AGENTS.md, Gates).
-Postgres for Alembic and psql: `docker compose up -d db` at the repo root, then `DATABASE_URL=postgresql+psycopg://agentquilt:agentquilt@localhost:5432/agentquilt uv run alembic upgrade head`.
-`DATABASE_URL` is the only database setting; `alembic.ini` never carries a URL, and the compose services get it from `compose.yaml`.
+Postgres for Alembic and psql: `docker compose up -d db` at the repo root, then `DATABASE_URL=postgresql+psycopg://agentquilt:agentquilt@localhost:5432/agentquilt uv run alembic upgrade head`; `DATABASE_URL` is the only database setting (`alembic.ini` carries no URL; the compose services get it from `compose.yaml`).

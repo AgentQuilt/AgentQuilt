@@ -16,3 +16,7 @@ def test_lint_catches_plural_tables_and_missing_prefixes() -> None:
     assert len(problems) == 2
     assert "plural" in problems[0]
     assert "'ix_' prefix" in problems[1]
+
+
+def test_singular_word_ending_in_s_is_not_plural() -> None:
+    assert check_source("0002_ok.py", 'op.create_table("status")') == []
