@@ -6,12 +6,12 @@ Writes one JSONL line per substantial turn to .claude/.curate/journal.jsonl.
 
 Smoke test: printf '%s' '{"stop_hook_active":true}' | python3 .claude/hooks/post-turn-journal.py; echo $?   # 0, no journal line
 
-Duplicate suppression (run from the repo root; scratch project dir, no spawn):
+Duplicate suppression (run from the repo root; scratch project dir, threshold raised so nothing spawns):
   d=$(mktemp -d); e='{"message":{"role":"assistant","content":[{"type":"tool_use","name":"Edit","input":{}}]}}'
   p=$(printf '{"session_id":"s","transcript_path":"%s"}' "$d/t.jsonl"); echo "$e" > "$d/t.jsonl"
-  for i in 1 2; do printf '%s' "$p" | CLAUDE_PROJECT_DIR="$d" CLAUDE_SELF_CURATE_RUNNING=1 python3 .claude/hooks/post-turn-journal.py; done
+  for i in 1 2; do printf '%s' "$p" | CLAUDE_PROJECT_DIR="$d" AGENTQUILT_CURATE_THRESHOLD=9999 python3 .claude/hooks/post-turn-journal.py; done
   wc -l < "$d/.claude/.curate/journal.jsonl"   # 1: the second Stop counted the same transcript lines
-  echo "${e/Edit/Write}" > "$d/t.jsonl"; printf '%s' "$p" | CLAUDE_PROJECT_DIR="$d" CLAUDE_SELF_CURATE_RUNNING=1 python3 .claude/hooks/post-turn-journal.py
+  echo "${e/Edit/Write}" > "$d/t.jsonl"; printf '%s' "$p" | CLAUDE_PROJECT_DIR="$d" AGENTQUILT_CURATE_THRESHOLD=9999 python3 .claude/hooks/post-turn-journal.py
   wc -l < "$d/.claude/.curate/journal.jsonl"   # 2: same totals, different activity — the window moved
 """
 from __future__ import annotations
@@ -124,6 +124,10 @@ def main() -> int:
     if not (edits or test_runs or git_cmds or corrections):
         return 0
 
+    # A curate lane's own turn is neither journaled nor counted.
+    if os.environ.get("CLAUDE_SELF_CURATE_RUNNING") == "1":
+        return 0
+
     # Best-effort.
     git_dirty = 0
     try:
@@ -162,10 +166,7 @@ def main() -> int:
     except Exception:
         pass
 
-    # Threshold-driven auto-curate. Skip if we're already inside a curate
-    # subprocess (recursion guard).
-    if os.environ.get("CLAUDE_SELF_CURATE_RUNNING") == "1":
-        return 0
+    # Threshold-driven auto-curate.
     threshold = int(os.environ.get("AGENTQUILT_CURATE_THRESHOLD", "15"))
     try:
         with open(JOURNAL, "r", encoding="utf-8") as f:

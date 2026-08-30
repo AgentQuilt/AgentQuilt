@@ -1,5 +1,5 @@
 ---
-paths: ["src/**", "docs/architecture/**"]
+paths: ["backend/**", "docs/architecture/**"]
 ---
 
 # Architecture rules (canonical wording; other files reference these kinds by name)

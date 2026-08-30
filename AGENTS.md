@@ -61,7 +61,11 @@ This paragraph goes verbatim into every review prompt (`codex-review` copies it)
 
 ## Gates
 
-Commands land with the first scaffold (ruff, pyright, pytest against real Postgres; Biome and tsc once TypeScript exists). Each gate line carries its trap inline: what a false green looks like and how to spot it. Until then, green means: the file caps in the factory plan hold and every hook passes its recorded smoke test.
+Three commands, all run from `backend/`; each carries its trap inline, and a hook change is green only when the hook passes its recorded smoke test (Biome and tsc land with the first TypeScript).
+
+* `cd backend && uv run ruff check .` — trap: a green with "0 files checked" means the include is wrong, not that the code is clean.
+* `uv run pyright` — trap: "0 errors" on an empty include; check that the file count in the summary matches the tree.
+* `uv run pytest` — traps: exit 5, "no tests ran", is red, not green; and a testcontainers fixture that cannot reach Docker reads as an error, never a skip.
 
 ## Model routing
 

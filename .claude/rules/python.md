@@ -18,7 +18,7 @@ paths: ["**/*.py"]
 - Never `except Exception:` around a route body — it turns 500s into silent 200s. Catch the specific class or let it propagate.
 - No config flag, env var, or `**kwargs` bag to select between behaviours that have one caller.
 - Budgets: ≤5 args (≤3 positional), ~30 statements, complexity 8 per function. At the limit, fix the interface — don't add an options object, and never condense statements or shorten names to fit.
-- Structure by domain (`src/<domain>/{router,schemas,models,service,dependencies}.py`), not by layer. `service.py` is a permitted filename per the vault's naming conventions; "service" stays out of design prose. No repository / unit-of-work / DTO-per-layer tiers over SQLAlchemy 2.0 — `AsyncSession` is the layer. `Annotated[..., Depends()]` is the DI container; don't add another.
+- Structure by domain, not by layer: `backend/app/kernel/<module>/` and `backend/app/modules/<module>/`, each holding `MODULE.md`, `models.py`, `service.py`, `router.py` (where a route exists) and `tests/`. `service.py` is a permitted filename per the vault's naming conventions; "service" stays out of design prose. No repository / unit-of-work / DTO-per-layer tiers over SQLAlchemy 2.0 — `AsyncSession` is the layer. `Annotated[..., Depends()]` is the DI container; don't add another.
 - Never block the event loop inside `async def` (`requests`, `time.sleep`, sync ORM). Async end-to-end; CPU >50 ms goes to a worker.
 - Keep `__init__.py` files present and empty — no re-export walls.
 - Tests: real Postgres (testcontainers), async `httpx` client from day one, `dependency_overrides` for auth/external services only. No DB mocks, no monkeypatching internals.
