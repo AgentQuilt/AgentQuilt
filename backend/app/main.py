@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 
 from fastapi import FastAPI
+
+from app.kernel.store.seed import seed
 
 ROLES = ("serve", "work", "tick", "seed")
 
@@ -18,6 +21,10 @@ def main() -> int:
     for role in ROLES:
         subparsers.add_parser(role)
     args = parser.parse_args()
+    if args.role == "seed":
+        for org in asyncio.run(seed()):
+            print(f"org {org.org_id} user {org.user_id} token {org.token}")
+        return 0
     print(f"agentquilt: role {args.role}")
     return 0
 
