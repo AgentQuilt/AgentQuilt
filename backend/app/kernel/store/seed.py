@@ -1,4 +1,5 @@
-"""Two orgs with a user, a token and an agent definition each (D6).
+"""Two orgs with a user, a token and an agent definition each (D6), and the
+tier binding they run under.
 
 Every insert goes through the scoped session rather than a superuser connection,
 so a seed run that succeeds is evidence the RLS write path works.
@@ -11,10 +12,24 @@ import secrets
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
+from sqlalchemy.dialects.postgresql import insert
+
+from app.kernel.model.models import TierBinding
 from app.kernel.store.models import AgentDefinition, Org, Principal, User, UserToken
 from app.kernel.store.service import session
 
 ORG_NAMES = ("Org A", "Org B")
+# The migration fixes the four tier names; what a tier resolves to is data, and
+# this is the deployment's first row of it. Deployment-global, so it carries a
+# fixed id and a second seed run leaves the row alone.
+EXECUTOR_BINDING = {
+    "id": UUID("f1a4d8be-6d1f-4a3e-9c2b-0a5f7c3e1b00"),
+    "tier": "executor",
+    "provider": "openrouter",
+    "model": "z-ai/glm-5.3-flash",
+    "effort": None,
+    "version": 1,
+}
 SOUL_TEXT = (
     "You are the assistant of this organization.\n"
     "You answer from what the organization knows, and you say when it does not."
@@ -69,4 +84,17 @@ async def seed() -> list[SeededOrg]:
             )
             await scoped.commit()
         seeded.append(SeededOrg(org_id, system_principal_id, user_id, token))
+    await _bind_executor_tier(seeded[0])
     return seeded
+
+
+async def _bind_executor_tier(org: SeededOrg) -> None:
+    """`core.tier_binding` is global, and a session is always org-scoped: the
+    first seeded org opens the one this row is written through."""
+    async with session(org.org_id, org.system_principal_id) as scoped:
+        await scoped.execute(
+            insert(TierBinding)
+            .values(EXECUTOR_BINDING)
+            .on_conflict_do_nothing(index_elements=[TierBinding.id])
+        )
+        await scoped.commit()
