@@ -19,7 +19,12 @@ from app.kernel.declare.ledger import (
     append,
     commit,
 )
-from app.kernel.declare.models import Event, OperationVersion, StreamHead
+from app.kernel.declare.models import (
+    Event,
+    IdempotencyKey,
+    OperationVersion,
+    StreamHead,
+)
 from app.kernel.store.service import session
 from tests.kit import Scope, two_principals
 
@@ -166,6 +171,35 @@ async def test_retry_returns_stored_action(
     async with session(org, principal) as scoped:
         again = await commit(scoped, request)
         assert again.id == action_id
+        await scoped.commit()
+        assert await scoped.scalar(_event_count(aggregate)) == 1
+
+
+async def test_commit_completes_a_reservation(
+    scopes: tuple[Scope, Scope], declared: None
+) -> None:
+    org, principal = scopes[0]
+    aggregate = uuid4()
+    request = _request(principal, aggregate, 0, key="reserved")
+    async with session(org, principal) as scoped:
+        scoped.add(
+            IdempotencyKey(
+                org_id=org,
+                operation_name=OPERATION,
+                idempotency_key="reserved",
+                action_id=None,
+            )
+        )
+        await scoped.commit()
+
+    async with session(org, principal) as scoped:
+        action = await commit(scoped, request)
+        await scoped.commit()
+        reservation = await scoped.get(IdempotencyKey, (org, OPERATION, "reserved"))
+        assert reservation is not None and reservation.action_id == action.id
+
+    async with session(org, principal) as scoped:
+        assert (await commit(scoped, request)).id == action.id
         await scoped.commit()
         assert await scoped.scalar(_event_count(aggregate)) == 1
 

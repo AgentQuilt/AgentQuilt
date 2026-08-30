@@ -14,6 +14,7 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.kernel.declare.models import (
@@ -141,14 +142,26 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
         compensator_args=request.compensator_args,
     )
     session.add(action)
-    # A second live transaction with this key loses here on the primary key and
-    # is dead by construction; the caller re-reads and takes the stored action.
-    session.add(
-        IdempotencyKey(
+    # Dispatch reserves the key (`action_id` NULL) before it runs the operation, so
+    # the usual path here is completing that reservation; a caller with no
+    # reservation inserts. The `where` is what keeps a key that already names an
+    # action pointing at that one.
+    await session.execute(
+        insert(IdempotencyKey)
+        .values(
             org_id=org,
             operation_name=request.operation_name,
             idempotency_key=request.idempotency_key,
             action_id=action_id,
+        )
+        .on_conflict_do_update(
+            index_elements=[
+                IdempotencyKey.org_id,
+                IdempotencyKey.operation_name,
+                IdempotencyKey.idempotency_key,
+            ],
+            set_={"action_id": action_id},
+            where=IdempotencyKey.action_id.is_(None),
         )
     )
     await session.flush()
