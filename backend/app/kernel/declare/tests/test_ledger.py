@@ -133,6 +133,8 @@ async def test_expected_version_mismatch_rolls_back(
         with pytest.raises(VersionConflictError) as conflict:
             await commit(scoped, _request(principal, aggregate, 0, key="stale"))
         assert conflict.value == VersionConflictError(0, 1)
+        # The transaction is alive after the raise, and it is the app role's.
+        assert await scoped.scalar(text("SELECT current_user")) == "agentquilt_app"
         await scoped.rollback()
 
         assert await scoped.scalar(_event_count(aggregate)) == 1

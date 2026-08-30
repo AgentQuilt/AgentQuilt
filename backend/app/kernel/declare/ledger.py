@@ -70,7 +70,6 @@ class VersionConflictError(Exception):
 
 
 async def commit(session: AsyncSession, request: Commit) -> Action:
-    await session.execute(_WRITER)
     org = UUID(session.info["org"])
     stored = await session.scalar(
         select(Action)
@@ -82,7 +81,6 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
         )
     )
     if stored is not None:
-        await session.execute(_APP)
         return stored
 
     # The lock is what serialises two commits on one aggregate: the second reads
@@ -96,6 +94,9 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
     if actual != request.expected_version:
         raise VersionConflictError(request.expected_version, actual)
 
+    # The reads above are the app role's; only the writes need the ledger writer,
+    # and a flush that fails leaves a dead transaction whose rollback resets the role.
+    await session.execute(_WRITER)
     action_id = uuid4()
     event = Event(
         org_id=org,
