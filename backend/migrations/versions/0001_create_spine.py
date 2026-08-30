@@ -585,4 +585,5 @@ def downgrade() -> None:
     for schema, table in reversed(CREATE_ORDER):
         op.drop_table(table, schema=schema)
     op.execute("DROP SCHEMA mod_skills")
-    op.execute("DROP SCHEMA core")  # roles are cluster objects; creation is idempotent, downgrade leaves them
+    # Roles are cluster objects and their creation is idempotent; downgrade leaves them.
+    op.execute("DROP SCHEMA core")
