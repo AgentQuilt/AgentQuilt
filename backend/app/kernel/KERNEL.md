@@ -12,7 +12,7 @@ interface: not built yet, wave 5.
 
 ## declare
 
-interface: ledger `commit()` and `append()`, wave 3; registry and dispatch, wave 4.
+interface: registry, `dispatch()`, ledger `commit()` and `append()`, wave 4.
 
 ## runs
 
