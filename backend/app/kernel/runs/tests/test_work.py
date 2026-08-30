@@ -25,7 +25,7 @@ from app.kernel.identity.models import Approval
 from app.kernel.runs.models import Checkpoint, StepQueue
 from app.kernel.runs.service import cancel, create, events, send
 from app.kernel.runs.tick import EXPIRED, Pass, tick_once
-from app.kernel.runs.work import LEASE, PLANNED, Claimed, claim, work_once
+from app.kernel.runs.work import LEASE, PLANNED, Claimed, claim, step, work_once
 from app.kernel.store.models import AgentDefinition, Run
 from app.kernel.store.service import session
 from tests.kit import FakeClock, FakeModelRunner, Scope, two_principals
@@ -231,6 +231,43 @@ async def test_cancel_stops_at_step_boundary(setup: Setup) -> None:
             .where(Approval.run_id == run_id, Approval.state.in_(("requested", "open")))
         )
         assert answerable == 0
+
+
+async def test_cancel_mid_step_is_not_resurrected(setup: Setup) -> None:
+    """Cancel lands between a claim and its step: the step's committed call
+    stands in the ledger, and the run stays cancelled — no new state, no
+    checkpoint, no next queue row."""
+    run_id, note_id = await _run(setup), uuid4()
+    clock = FakeClock()
+    async with session(*setup.scope) as scoped:
+        claimed = await claim(scoped, worker_id="worker-a", now=clock.now())
+        await scoped.commit()
+    assert claimed is not None and claimed == Claimed(run_id, 1)
+
+    async with session(*setup.scope) as scoped:
+        assert await cancel(scoped, run_id) is True
+        await scoped.commit()
+
+    async with session(*setup.scope) as scoped:
+        settled = await step(
+            scoped,
+            claimed,
+            runner=FakeModelRunner(_proposes(WRITE, note_id)),
+            registry=setup.registry,
+            clock=clock.now,
+        )
+        await scoped.commit()
+    assert settled == "cancelled"
+
+    async with session(*setup.scope) as scoped:
+        run = await scoped.get_one(Run, run_id)
+        assert run.state == "cancelled"
+        for leftover in (StepQueue, Checkpoint):
+            assert await scoped.scalar(
+                select(func.count())
+                .select_from(leftover)
+                .where(leftover.run_id == run_id)
+            ) == 0
 
 
 async def test_expired_approval_requeues_step(setup: Setup) -> None:

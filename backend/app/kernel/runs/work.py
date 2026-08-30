@@ -216,6 +216,13 @@ async def _settle(
         # No checkpoint: the same step number is re-queued by whoever answers the
         # approval, and it must drain the same mailbox and replay the same calls.
         return await _state(session, run, "waiting_approval")
+    # A turn that proposed no call has said what it had to say.
+    wanted = "queued" if outcome.results else "done"
+    settled = await _state(session, run, wanted)
+    if settled != wanted:
+        # The run ended under the step — D4: a cancel is felt here, at the
+        # boundary. Its committed calls stand in the ledger; nothing re-enqueues.
+        return settled
     session.add(
         Checkpoint(
             id=uuid4(),
@@ -229,29 +236,33 @@ async def _settle(
             },
         )
     )
-    if not outcome.results:
-        # A turn that proposed no call has said what it had to say.
-        return await _state(session, run, "done")
-    session.add(
-        StepQueue(
-            org_id=run.org_id,
-            run_id=run.id,
-            step_no=step_no + 1,
-            queue_tag=QUEUE_TAG,
+    if outcome.results:
+        session.add(
+            StepQueue(
+                org_id=run.org_id,
+                run_id=run.id,
+                step_no=step_no + 1,
+                queue_tag=QUEUE_TAG,
+            )
         )
-    )
-    return await _state(session, run, "queued")
+    return wanted
 
 
 async def _state(
     session: AsyncSession, run: Run, state: str, reason: str | None = None
 ) -> str:
-    await session.execute(
+    """Guarded on the `running` the claim wrote: a run whose state moved under
+    the step (a cancel) keeps its terminal state, and the caller reads it back."""
+    moved = await session.scalar(
         update(Run)
-        .where(Run.id == run.id)
+        .where(Run.id == run.id, Run.state == "running")
         .values(state=state, failure_reason=reason, updated_at=func.now())
+        .returning(Run.id)
         .execution_options(synchronize_session=False)
     )
+    if moved is None:
+        current = await session.scalar(select(Run.state).where(Run.id == run.id))
+        return state if current is None else current
     await session.flush()
     return state
 

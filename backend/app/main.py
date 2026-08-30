@@ -48,9 +48,12 @@ async def work() -> None:
 
 
 async def tick() -> None:
-    """The `tick` role: one pass per tenant; the advisory lock picks the leader."""
-    for scope in await tenants():
-        await tick_once(scope)
+    """The `tick` role: reap and expire every tenant, forever; the advisory lock
+    picks the leader each pass."""
+    while True:
+        for scope in await tenants():
+            await tick_once(scope)
+        await asyncio.sleep(POLL_SECONDS)
 
 
 def main() -> int:
