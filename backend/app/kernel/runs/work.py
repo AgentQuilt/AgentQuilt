@@ -72,11 +72,12 @@ async def claim(
 ) -> Claimed | None:
     """Take one free step on a lease, or None when the queue has nothing free.
 
-    `SKIP LOCKED` is what lets N workers run the same statement: a row another
-    worker is claiming right now is not a row this one waits for. Nothing here
-    calls a model — the caller commits this transaction and then works the step.
-    Lock order is queue row, then run row; `cancel` takes them the same way, so
-    the pair waits instead of deadlocking.
+    `SKIP LOCKED` is what lets N workers run the same statement: a run another
+    worker or a cancel holds right now is not one this claim waits for. Nothing
+    here calls a model — the caller commits this transaction and then works the
+    step. The lock taken is the run row, the lifecycle mutex every run writer
+    takes first (runs/MODULE.md), so claim and cancel serialize instead of
+    deadlocking.
     """
     row = (
         await session.execute(
@@ -89,7 +90,7 @@ async def claim(
             )
             .order_by(StepQueue.step_no, StepQueue.run_id)
             .limit(1)
-            .with_for_update(skip_locked=True, of=StepQueue)
+            .with_for_update(skip_locked=True, of=Run)
         )
     ).first()
     if row is None:
@@ -143,12 +144,9 @@ async def step(
         # Terminal, and no checkpoint: nothing was bought, so there is nothing to
         # resume from, and a person starts a new run rather than the worker
         # retrying against a cap that has not moved.
-        await session.execute(
-            delete(StepQueue).where(
-                StepQueue.run_id == run.id, StepQueue.step_no == claimed.step_no
-            )
-        )
-        return await _state(session, run, "failed", answered.reason)
+        settled = await _state(session, run, "failed", answered.reason)
+        await _leave(session, run.id, claimed.step_no)
+        return settled
     await _journal(session, run.id, claimed.step_no, answered.completion)
     context = CallContext(
         session=session,
@@ -208,19 +206,16 @@ async def _settle(
     session: AsyncSession, run: Run, step_no: int, outcome: _Step
 ) -> str:
     """How the step ends: parked, answered, or handed on to the next step."""
-    # ADR-0019: a worked step's row is deleted, and its history is in the journal.
-    await session.execute(
-        delete(StepQueue).where(
-            StepQueue.run_id == run.id, StepQueue.step_no == step_no
-        )
-    )
     if outcome.parked:
         # No checkpoint: the same step number is re-queued by whoever answers the
         # approval, and it must drain the same mailbox and replay the same calls.
-        return await _state(session, run, "waiting_approval")
+        settled = await _state(session, run, "waiting_approval")
+        await _leave(session, run.id, step_no)
+        return settled
     # A turn that proposed no call has said what it had to say.
     wanted = "queued" if outcome.results else "done"
     settled = await _state(session, run, wanted)
+    await _leave(session, run.id, step_no)
     if settled != wanted:
         # The run ended under the step — D4: a cancel is felt here, at the
         # boundary. Its committed calls stand in the ledger; nothing re-enqueues.
@@ -267,6 +262,19 @@ async def _state(
         return state if current is None else current
     await session.flush()
     return state
+
+
+async def _leave(session: AsyncSession, run_id: UUID, step_no: int) -> None:
+    """ADR-0019: a worked step's row is deleted; its history is in the journal.
+
+    After `_state`, so the run row is locked before the queue row (the mutex
+    order), and a no-op when a cancel already swept the row.
+    """
+    await session.execute(
+        delete(StepQueue).where(
+            StepQueue.run_id == run_id, StepQueue.step_no == step_no
+        )
+    )
 
 
 async def _dispatch_all(

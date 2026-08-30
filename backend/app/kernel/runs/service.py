@@ -155,12 +155,11 @@ async def events(
 async def cancel(session: AsyncSession, run_id: UUID) -> bool:
     """Stop a run for good: state, queue, open approvals and journal, together.
 
-    Lock order is queue row, then run row — the same order `claim` takes them —
-    so a cancel racing a claim waits instead of deadlocking. A run this org does
-    not have owns no visible queue rows, so the delete is a no-op before the
-    run update says no.
+    The run-state update comes first: the run row is the lifecycle mutex
+    (runs/MODULE.md), so every requeue still in flight — a claim, a settling
+    step, an answered or expired approval — holds it while it inserts, and the
+    queue delete runs only after each has finished or found the run cancelled.
     """
-    await session.execute(delete(StepQueue).where(StepQueue.run_id == run_id))
     cancelled = await session.scalar(
         update(Run)
         .where(Run.id == run_id)
@@ -170,6 +169,7 @@ async def cancel(session: AsyncSession, run_id: UUID) -> bool:
     )
     if cancelled is None:
         return False
+    await session.execute(delete(StepQueue).where(StepQueue.run_id == run_id))
     await session.execute(
         update(Approval)
         .where(Approval.run_id == run_id, Approval.state.in_(_ANSWERABLE))
