@@ -48,10 +48,10 @@ async def notes(migrated_url: str, scopes: tuple[Scope, Scope]) -> Registry:
     async with session(*scopes[0]) as scoped:
         await registry.publish(scoped)
         for name in (WRITE, REMOVE, LIST):
-            await grant(scoped, scopes[0][1], name, "may_use")
+            await grant(scoped, scopes[0][2], name, "may_use")
         await scoped.commit()
     async with session(*scopes[1]) as scoped:
-        await grant(scoped, scopes[1][1], LIST, "asks_first")
+        await grant(scoped, scopes[1][2], LIST, "asks_first")
         await scoped.commit()
     return registry
 

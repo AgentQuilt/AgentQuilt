@@ -195,7 +195,9 @@ async def test_commit_completes_a_reservation(
     async with session(org, environment, principal) as scoped:
         action = await commit(scoped, request)
         await scoped.commit()
-        reservation = await scoped.get(IdempotencyKey, (org, OPERATION, "reserved"))
+        reservation = await scoped.get(
+            IdempotencyKey, (environment, org, OPERATION, "reserved")
+        )
         assert reservation is not None and reservation.action_id == action.id
 
     async with session(org, environment, principal) as scoped:

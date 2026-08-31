@@ -162,7 +162,10 @@ async def commit(session: AsyncSession, request: Commit) -> Action:
             action_id=action_id,
         )
         .on_conflict_do_update(
+            # The inferred set is the primary key, which grew the plane in 0004:
+            # a DEV replay must not match a PROD reservation.
             index_elements=[
+                IdempotencyKey.environment_id,
                 IdempotencyKey.org_id,
                 IdempotencyKey.operation_name,
                 IdempotencyKey.idempotency_key,

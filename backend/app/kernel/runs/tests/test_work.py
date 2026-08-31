@@ -68,8 +68,8 @@ async def setup(migrated_url: str) -> Setup:
     registry = notes_registry()
     async with session(*scope) as scoped:
         await registry.publish(scoped)
-        await grant(scoped, scope[1], WRITE, "may_use")
-        await grant(scoped, scope[1], REMOVE, "asks_first")
+        await grant(scoped, scope[2], WRITE, "may_use")
+        await grant(scoped, scope[2], REMOVE, "asks_first")
         definition_id = (await scoped.scalars(select(AgentDefinition.id))).one()
         await scoped.commit()
     return Setup(scope, registry, definition_id)
@@ -205,7 +205,7 @@ async def test_crash_replay_no_duplicate(setup: Setup) -> None:
         outcome = await dispatch(
             CallContext(
                 session=scoped,
-                principal_id=setup.scope[1],
+                principal_id=setup.scope[2],
                 run_id=run_id,
                 step_no=1,
                 registry=setup.registry,
@@ -301,7 +301,7 @@ async def test_grant_widened_after_create_is_capped_by_the_ceiling(
         return (
             update(Grant)
             .where(
-                Grant.principal_id == setup.scope[1],
+                Grant.principal_id == setup.scope[2],
                 Grant.operation_name == REMOVE,
             )
             .values(level=level)

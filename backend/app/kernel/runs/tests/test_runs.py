@@ -68,7 +68,7 @@ async def _steer(scope: Scope, run_id: UUID, text: str) -> None:
 async def test_user_creates_run(scopes: tuple[Scope, Scope]) -> None:
     scope = scopes[0]
     async with session(*scope) as scoped:
-        await grant(scoped, scope[1], WRITE, "may_use")
+        await grant(scoped, scope[2], WRITE, "may_use")
         definition = await _definition(scoped)
         run = await create(scoped, definition, None)
         await scoped.commit()
@@ -133,7 +133,7 @@ async def test_mailbox_seq_serialises_two_senders(
             )
         ).all()
     assert [seq for seq, _ in rows] == [1, 2]
-    assert {author for _, author in rows} == {scope[1]}
+    assert {author for _, author in rows} == {scope[2]}
 
 
 async def test_org_b_cannot_steer(scopes: tuple[Scope, Scope]) -> None:
@@ -167,7 +167,7 @@ async def test_cancel_clears_queue_and_open_approvals(
             Approval(
                 id=approval_id,
                 org_id=scope[0],
-                granted_to=scope[1],
+                granted_to=scope[2],
                 operation_version_id=VERSION,
                 args_hash="",
                 state="requested",

@@ -92,17 +92,7 @@ class Event(Base):
     created_at: Mapped[datetime] = _created_at()
     # Deferred, so the commit inserts the event and then its action in one
     # transaction and the pair settles at COMMIT.
-    action_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey(
-            "core.action.id",
-            name="fk_event_action",
-            # event and action point at each other; this tells the metadata
-            # which of the two edges to break when it sorts the tables.
-            use_alter=True,
-            deferrable=True,
-            initially="DEFERRED",
-        )
-    )
+    action_id: Mapped[UUID | None] = mapped_column()
 
 
 class StreamHead(Base):
@@ -120,9 +110,7 @@ class StreamHead(Base):
     aggregate_kind: Mapped[str] = mapped_column(Text)
     aggregate_id: Mapped[UUID] = mapped_column()
     version: Mapped[int] = mapped_column(Integer)
-    last_event_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("core.event.id", name="fk_stream_head_event")
-    )
+    last_event_id: Mapped[int] = mapped_column(BigInteger)
 
 
 class OperationVersion(Base):
@@ -156,9 +144,7 @@ class Action(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = _org_id("action")
     environment_id: Mapped[UUID] = environment_id_column()
-    event_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("core.event.id", name="fk_action_event")
-    )
+    event_id: Mapped[int] = mapped_column(BigInteger)
     operation_version_id: Mapped[str] = mapped_column(
         Text,
         ForeignKey("core.operation_version.id", name="fk_action_operation_version"),
@@ -178,7 +164,11 @@ class IdempotencyKey(Base):
 
     __tablename__ = "idempotency_key"
     __table_args__ = (
-        PrimaryKeyConstraint("org_id", "operation_name", "idempotency_key"),
+        # The plane is in the key: a DEV replay must not eat a PROD
+        # reservation (0004).
+        PrimaryKeyConstraint(
+            "environment_id", "org_id", "operation_name", "idempotency_key"
+        ),
         environment_scope("idempotency_key"),
         scope_fk("idempotency_key", "action_id", "action"),
     )
@@ -187,6 +177,4 @@ class IdempotencyKey(Base):
     environment_id: Mapped[UUID] = environment_id_column()
     operation_name: Mapped[str] = mapped_column(Text)
     idempotency_key: Mapped[str] = mapped_column(Text)
-    action_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("core.action.id", name="fk_idempotency_key_action")
-    )
+    action_id: Mapped[UUID | None] = mapped_column()

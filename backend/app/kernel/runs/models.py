@@ -46,9 +46,7 @@ class StepQueue(Base):
         ForeignKey("core.org.id", name="fk_step_queue_org")
     )
     environment_id: Mapped[UUID] = environment_id_column()
-    run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.run.id", name="fk_step_queue_run")
-    )
+    run_id: Mapped[UUID] = mapped_column()
     step_no: Mapped[int] = mapped_column(Integer)
     queue_tag: Mapped[str] = mapped_column(Text)
     lease_until: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
@@ -74,9 +72,7 @@ class MailboxMessage(Base):
         ForeignKey("core.org.id", name="fk_mailbox_message_org")
     )
     environment_id: Mapped[UUID] = environment_id_column()
-    run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.run.id", name="fk_mailbox_message_run")
-    )
+    run_id: Mapped[UUID] = mapped_column()
     seq: Mapped[int] = mapped_column(Integer)
     kind: Mapped[str] = mapped_column(Text)
     author_principal_id: Mapped[UUID] = mapped_column(
@@ -100,9 +96,7 @@ class Checkpoint(Base):
         ForeignKey("core.org.id", name="fk_checkpoint_org")
     )
     environment_id: Mapped[UUID] = environment_id_column()
-    run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.run.id", name="fk_checkpoint_run")
-    )
+    run_id: Mapped[UUID] = mapped_column()
     step_no: Mapped[int] = mapped_column(Integer)
     state: Mapped[Json] = mapped_column(JSONB)
     created_at: Mapped[datetime] = created_at_column()

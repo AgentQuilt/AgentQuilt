@@ -36,9 +36,7 @@ class ContextManifest(Base):
         ForeignKey("core.org.id", name="fk_context_manifest_org")
     )
     environment_id: Mapped[UUID] = environment_id_column()
-    run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.run.id", name="fk_context_manifest_run")
-    )
+    run_id: Mapped[UUID] = mapped_column()
     step_no: Mapped[int] = mapped_column(Integer)
     prefix_key: Mapped[str] = mapped_column(Text)
     layers: Mapped[Json] = mapped_column(JSONB)

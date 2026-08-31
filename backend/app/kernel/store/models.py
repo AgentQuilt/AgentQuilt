@@ -127,6 +127,8 @@ class Environment(Base):
 
 class User(Base):
     __tablename__ = "user"
+    # What a token's org-carrying key points at.
+    __table_args__ = (UniqueConstraint("org_id", "id", name="uq_user_org_id"),)
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = mapped_column(ForeignKey("core.org.id", name="fk_user_org"))
@@ -178,12 +180,18 @@ class AgentDefinition(Base):
 
 class UserToken(Base):
     __tablename__ = "user_token"
-    __table_args__ = (UniqueConstraint("token_hash", name="uq_user_token_token_hash"),)
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_user_token_token_hash"),
+        # A token's org is its user's org, or the two disagree in silence.
+        ForeignKeyConstraint(
+            ["org_id", "user_id"],
+            ["core.user.org_id", "core.user.id"],
+            name="fk_user_token_user_org",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("core.user.id", name="fk_user_token_user")
-    )
+    user_id: Mapped[UUID] = mapped_column()
     org_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.org.id", name="fk_user_token_org")
     )
@@ -226,9 +234,7 @@ class Run(Base):
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
-    parent_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("core.run.id", name="fk_run_parent")
-    )
+    parent_id: Mapped[UUID | None] = mapped_column()
     org_id: Mapped[UUID] = mapped_column(ForeignKey("core.org.id", name="fk_run_org"))
     environment_id: Mapped[UUID] = environment_id_column()
     agent_definition_id: Mapped[UUID] = mapped_column(
@@ -281,6 +287,9 @@ class SkillVersion(Base):
             "execution_mode IN ('inline', 'delegated')",
             name="ck_skill_version_execution_mode",
         ),
+        # A binding names one skill's version, never another's, so the reference
+        # is the pair, and the pair needs this second unique key.
+        UniqueConstraint("skill_id", "id", name="uq_skill_version_skill_id"),
         {"schema": "mod_skills"},
     )
 

@@ -64,8 +64,8 @@ async def notes(migrated_url: str, scope: Scope) -> Registry:
     async with session(*scope) as scoped:
         await registry.publish(scoped)
         await process_registry.publish(scoped)
-        await grant(scoped, scope[1], WRITE, "asks_first")
-        await grant(scoped, scope[1], DECIDE, "may_use")
+        await grant(scoped, scope[2], WRITE, "asks_first")
+        await grant(scoped, scope[2], DECIDE, "may_use")
         await scoped.commit()
     return registry
 
@@ -79,7 +79,7 @@ def _ctx(
 ) -> CallContext:
     return CallContext(
         session=scoped,
-        principal_id=scope[1],
+        principal_id=scope[2],
         run_id=run,
         step_no=1,
         registry=registry,
@@ -125,7 +125,7 @@ async def _decide(
         # tick, never a step - governance refuses a deciding ctx that carries one.
         CallContext(
             session=scoped,
-            principal_id=scope[1],
+            principal_id=scope[2],
             run_id=None,
             step_no=None,
             registry=process_registry,
@@ -187,7 +187,7 @@ async def test_decide_approve_then_replay_commits(
         assert decided.result == {"decided": True, "state": "open", "run_queued": False}
         approval = await scoped.get(Approval, parked.approval_id)
         assert approval is not None
-        assert (approval.state, approval.granted_by) == ("open", scope[1])
+        assert (approval.state, approval.granted_by) == ("open", scope[2])
 
     async with session(*scope) as scoped:
         replay = await dispatch(
