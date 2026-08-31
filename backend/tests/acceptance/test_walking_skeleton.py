@@ -1,4 +1,4 @@
-"""The twelve clauses of the first slice, proven at the outermost seam.
+"""The first slice at the outermost seam: twelve skeleton clauses, then the thread.
 
 Each clause of the walking-skeleton flow is one test, and each test drives the
 product the way the deployment does: everything a person does goes through HTTP
