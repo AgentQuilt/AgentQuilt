@@ -40,6 +40,8 @@ TENANT_TABLES = frozenset(
         "usage_record",
         "skill",
         "skill_version",
+        "environment",
+        "skill_binding",
     }
 )
 GLOBAL_TABLES = frozenset({"operation_version", "tier", "tier_binding"})
@@ -107,7 +109,7 @@ def test_chain_round_trips_and_creates_every_table(spine: str) -> None:
         queue_options = conn.execute(
             "SELECT reloptions FROM pg_class WHERE oid = 'core.step_queue'::regclass"
         ).fetchone()
-    assert version == ("0002",)
+    assert version == ("0003",)
     assert {row[0] for row in tables} == TENANT_TABLES | GLOBAL_TABLES
     # Seeded by the migration, so the round trip has to leave exactly one set.
     assert tiers == [("executor",), ("image",), ("orchestrator",), ("simple",)]

@@ -62,13 +62,30 @@ async def test_scoped_write_lands_in_own_org_only(
             await scoped.flush()
 
 
+# Migration 0003 expanded the schema ahead of the models: the plane column and
+# the run's binding pin, plus the keys the rail added — the scope-carrying ones
+# (`..._scope`), the ones onto core.environment, and the unique keys those
+# reference. The models learn them in the wave that makes `environment_id` NOT
+# NULL (0004); until then the check skips exactly these, the way it already
+# skips a table the models do not carry at all.
+RAIL_COLUMNS = frozenset({"environment_id", "tier_binding_version"})
+RAIL_KEYS = (
+    "_scope",
+    "_environment",
+    "_org_environment_id",
+    "uq_skill_version_skill_id",
+)
+
+
 def _drift(connection: Connection) -> list[object]:
     def include_name(name: str | None, type_: str, parents: dict[str, str]) -> bool:
         if type_ == "schema":
             return name in ("core", "mod_skills")
         if type_ == "table":
             return parents["schema_qualified_table_name"] in Base.metadata.tables
-        return True
+        if type_ == "column":
+            return name not in RAIL_COLUMNS
+        return not (name or "").endswith(RAIL_KEYS)
 
     context = MigrationContext.configure(
         connection, opts={"include_schemas": True, "include_name": include_name}
