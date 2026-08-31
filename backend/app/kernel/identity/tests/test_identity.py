@@ -31,14 +31,20 @@ from tests.kit_notes import notes_registry
 pytestmark = pytest.mark.anyio
 
 REVOKED = "revoked-token"
+CROSS_ORG = "cross-org-token"
 RUN = UUID("11111111-1111-1111-1111-111111111111")
 ARGS: Json = {"note_id": str(RUN), "body": "hello"}
 
 
 @pytest.fixture(scope="module")
-async def org(migrated_url: str) -> SeededOrg:
-    """An org of this module's own: its token and user are what `resolve` reads."""
-    return (await seed())[0]
+async def orgs(migrated_url: str) -> list[SeededOrg]:
+    """Two orgs of this module's own: the first one's token is what `resolve` reads."""
+    return await seed()
+
+
+@pytest.fixture(scope="module")
+async def org(orgs: list[SeededOrg]) -> SeededOrg:
+    return orgs[0]
 
 
 @pytest.fixture(scope="module")
@@ -106,6 +112,30 @@ async def test_resolve_token(org: SeededOrg) -> None:
 
     assert await resolve("no-such-token") is None
     assert await resolve(REVOKED) is None
+
+
+async def test_resolve_refuses_a_token_naming_another_org(
+    orgs: list[SeededOrg],
+) -> None:
+    """A token whose org is not its principal's names nobody.
+
+    The seed never writes that row, so the test writes it by hand: the second
+    org's token for the first org's user, the one shape that could carry a bearer
+    token across the tenant boundary.
+    """
+    org, other = orgs
+    async with session(other.org_id, other.system_principal_id) as scoped:
+        scoped.add(
+            UserToken(
+                id=uuid4(),
+                user_id=org.user_id,
+                org_id=other.org_id,
+                token_hash=hashlib.sha256(CROSS_ORG.encode()).hexdigest(),
+            )
+        )
+        await scoped.commit()
+
+    assert await resolve(CROSS_ORG) is None
 
 
 async def test_effective_grants_maps_rows(org: SeededOrg) -> None:

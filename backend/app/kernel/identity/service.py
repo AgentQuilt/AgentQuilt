@@ -49,13 +49,18 @@ async def resolve(token: str) -> Caller | None:
     The one identity read that cannot be made through a scoped session: serve has
     to know the org before `store.session` can open one. It runs on the connecting
     role rather than `agentquilt_app`, the same harness workaround `store.tenants`
-    carries and with the same trigger.
+    carries and with the same trigger, so the join carries the org itself: a token
+    names a principal only inside its own org, whatever the rows say.
     """
     async with engine().connect() as connection:
         row = (
             await connection.execute(
                 select(Principal.org_id, Principal.id)
-                .join(UserToken, UserToken.user_id == Principal.user_id)
+                .join(
+                    UserToken,
+                    (UserToken.user_id == Principal.user_id)
+                    & (UserToken.org_id == Principal.org_id),
+                )
                 .where(
                     UserToken.token_hash == hashlib.sha256(token.encode()).hexdigest(),
                     UserToken.revoked_at.is_(None),
