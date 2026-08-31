@@ -16,6 +16,7 @@ import pytest
 from app.kernel.runs.service import cancel
 from app.kernel.store.seed import SeededOrg, seed
 from app.kernel.store.service import session
+from tests.kit import bearer_client, sse_frames
 
 pytestmark = pytest.mark.anyio
 
@@ -27,24 +28,12 @@ async def org(migrated_url: str) -> SeededOrg:
 
 
 def _client(serve_url: str, org: SeededOrg) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
-        base_url=serve_url, headers={"Authorization": f"Bearer {org.token}"}
-    )
+    return bearer_client(serve_url, org.token)
 
 
 async def _frame(client: httpx.AsyncClient, url: str, cursor: int) -> dict[str, str]:
-    """Read one SSE frame and hang up, which is what a browser reload does."""
-    headers = {"Last-Event-ID": str(cursor)} if cursor else {}
-    fields: dict[str, str] = {}
-    async with client.stream("GET", url, headers=headers) as response:
-        assert response.status_code == 200
-        async for line in response.aiter_lines():
-            if line:
-                name, _, value = line.partition(": ")
-                fields[name] = value
-            elif fields:
-                return fields
-    pytest.fail(f"{url} closed before it sent an event")
+    """The first frame past the cursor; the reader hangs up after it."""
+    return (await sse_frames(client, url, cursor=cursor))[0]
 
 
 async def test_unknown_token_is_refused(serve_url: str) -> None:

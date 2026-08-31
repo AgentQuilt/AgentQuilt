@@ -17,6 +17,7 @@ from app.kernel.store.models import Principal
 from app.kernel.store.seed import SeededOrg, seed
 from app.kernel.store.service import session
 from app.modules.governance.service import UNDO
+from tests.kit import bearer_client
 from tests.kit_notes import grant
 
 pytestmark = pytest.mark.anyio
@@ -37,9 +38,7 @@ async def orgs(migrated_url: str) -> tuple[SeededOrg, SeededOrg]:
 
 
 def _client(serve_url: str, org: SeededOrg) -> httpx.AsyncClient:
-    return httpx.AsyncClient(
-        base_url=serve_url, headers={"Authorization": f"Bearer {org.token}"}
-    )
+    return bearer_client(serve_url, org.token)
 
 
 async def test_undo_route_returns_the_refusal(

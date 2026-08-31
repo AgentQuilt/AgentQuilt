@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
+import httpx
 from pydantic_ai import models
 from pydantic_ai.direct import model_request
 from pydantic_ai.messages import ModelRequest, UserPromptPart
@@ -23,6 +24,7 @@ from app.kernel.ports.context_contributor import (
     Turn,
 )
 from app.kernel.ports.model_runner import Binding, Completion
+from app.kernel.store.models import Skill, SkillVersion
 from app.kernel.store.seed import seed
 
 # No test in this suite may reach a provider; the fake below goes through
@@ -33,6 +35,9 @@ models.ALLOW_MODEL_REQUESTS = False
 Scope = tuple[UUID, UUID]
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
+# The body of the skill version `dev_skill_version` writes: what a test that
+# follows the version into the model's prompt looks for.
+SKILL_BODY = "Answer from the notes, and say when the notes are silent."
 
 
 async def two_principals(url: str) -> tuple[Scope, Scope]:
@@ -111,3 +116,64 @@ class FakeModelRunner:
             ),
         )
         return completion(response)
+
+
+def bearer_client(
+    serve_url: str, token: str, *, timeout: float = 5.0
+) -> httpx.AsyncClient:
+    """The HTTP interface as one org's person sees it: every request carries the
+    token `seed` printed, and nothing else authenticates."""
+    return httpx.AsyncClient(
+        base_url=serve_url,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=timeout,
+    )
+
+
+async def sse_frames(
+    client: httpx.AsyncClient, url: str, *, cursor: int = 0, count: int = 1
+) -> list[dict[str, str]]:
+    """Read `count` frames off a stream and hang up, which is what a reload does.
+
+    Comment lines are skipped, so a keep-alive is never read as an event, and a
+    stream with nothing to say runs into the client's read timeout: that is how a
+    test asserts silence.
+    """
+    headers = {"Last-Event-ID": str(cursor)} if cursor else {}
+    frames: list[dict[str, str]] = []
+    fields: dict[str, str] = {}
+    async with client.stream("GET", url, headers=headers) as response:
+        assert response.status_code == 200
+        async for line in response.aiter_lines():
+            if line.startswith(":"):
+                continue
+            if line:
+                name, _, value = line.partition(": ")
+                fields[name] = value
+            elif fields:
+                frames.append(fields)
+                if len(frames) == count:
+                    return frames
+                fields = {}
+    raise AssertionError(f"{url} closed after {len(frames)} frames, wanted {count}")
+
+
+async def dev_skill_version(session: AsyncSession, org_id: UUID) -> str:
+    """One skill and one DEV version of it, ready to be activated."""
+    skill_id, version_id = uuid4(), str(uuid4())
+    session.add(Skill(id=skill_id, org_id=org_id, name=f"skill {skill_id}"))
+    await session.flush()
+    session.add(
+        SkillVersion(
+            id=version_id,
+            org_id=org_id,
+            skill_id=skill_id,
+            tier="executor",
+            execution_mode="inline",
+            operations={},
+            stage="DEV",
+            body=SKILL_BODY,
+        )
+    )
+    await session.flush()
+    return version_id

@@ -1,27 +1,51 @@
 # Kernel modules
 
-The six kernel modules and their interfaces. One line each until the wave that builds it lands.
+The six kernel modules and their interfaces, on one page. Each module's `MODULE.md`
+carries the rules behind its interface; `FROZEN.md` states what a change to any of
+them costs. Nothing outside `kernel/` may be imported from inside it.
 
 ## store
 
-interface: `session(org_id, principal_id)`, wave 2. schema: 0001, wave 1.
+`session(org_id, principal_id)` — the only way into the database, an async context
+manager whose transaction sets the tenant scope; `engine()`; `tenants()` — every org
+and the system principal a background role acts as in it; `seed()` — two demo orgs
+with a user, a token, an agent definition and the executor tier binding.
 
 ## identity
 
-interface: `resolve`, `effective_grants`, `args_hash`, approvals, wave 5; `resolve` takes a bearer token and no session, wave 9.
+`resolve(token) -> Caller | None` — the one read serve makes before it has a scope;
+`effective_grants(session, principal_id) -> Mapping[name, level]`;
+`args_hash(operation_version_id, args, scope) -> str`;
+`consume_approval(session, Consume) -> UUID | None` and
+`park_approval(session, Park) -> Approval | Decided`.
 
 ## declare
 
-interface: registry, `dispatch()`, ledger `commit()` and `append()`, wave 4.
-
-## runs
-
-interface: `create`, `send`, `post`, `events`, `cancel`, wave 8; `claim` / `step` / `work_once` (the `work` role) and `tick_once` (the `tick` role), wave 8; the web thread's three routes, wave 9.
+`registry.operation(name, Declares)` — how a module declares an operation;
+`dispatch(ctx, Call) -> Committed | Replayed | Denied | WaitingApproval` — the one
+way one runs; under it `commit(session, Commit) -> Action` and
+`append(session, Append) -> Event`, the only writers of `core.event` and
+`core.action`; `registry.publish(session)` and `catalog.render(registry)`, which
+writes `app/OPERATIONS.md`.
 
 ## context
 
-interface: not built yet, wave 7.
+`assemble(session, run, step_no, *, call, registry) -> AssembledTurn` — the prefix,
+the envelope, `prefix_key` and one persisted manifest per model call;
+`tokens(body)`, the one tokenizer; `register_prefix(contributor)`, how a module
+takes a layer. The two contracts are `ports/context_contributor.py` (ADR-0027).
 
 ## model
 
-interface: not built yet, wave 7.
+`run(session, assembled, run_row, *, runner) -> Answered | Refused` — the budget
+check before the call, the provider through the port, the usage row and the cache
+telemetry after it. The port is `ports/model_runner.py`; its adapters are
+`PydanticAIModelRunner` and the test kit's `FakeModelRunner`.
+
+## runs
+
+`create` / `send` / `post` / `events` / `cancel` for what a person does to a run,
+and the three web-thread routes over them (`router.py`);
+`claim` / `step` / `work_once(scope, *, worker_id, runner, registry, clock)` for the
+`work` role, and `tick_once(scope, *, clock)` for the `tick` leader. The run row is
+the lifecycle mutex; the lock order is in `MODULE.md`.

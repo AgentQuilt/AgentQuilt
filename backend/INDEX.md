@@ -15,8 +15,10 @@
 - `app/modules/governance/` — `governance.decide_approval` and `governance.undo_action`, and the two routes a person calls them through; `MODULE.md` states the interface.
 - `migrations/` — the Alembic async chain (`env.py`) and `lint.py`, the naming check pytest runs.
 - `migrations/versions/` — `0001_create_spine.py`: schemas `core` and `mod_skills`, the two roles, the tenant and ledger tables, RLS and grants. `0002_event_action_pair.py`: `event.action_id`, its deferred foreign key and the check that pairs an operation-commit event with exactly one action, and the ledger writer's `SELECT` on the two append-only tables, which `INSERT ... RETURNING` needs.
+- `docs/model-assumption-ledger.md` — the structure this codebase carries because of what today's models cannot do, one entry per workaround with its deletion trigger; add an entry in the change that introduces one.
 - `conftest.py` — the session-wide Postgres container, `migrated_url` and `serve_url` (the app on a real socket, which a stream test needs and an ASGI transport cannot give), shared by `tests/` and every `app/kernel/*/tests/`.
-- `tests/` — real Postgres through testcontainers; no DB mocks. `kit.py` holds the fixtures the kernel test folders share.
+- `tests/` — real Postgres through testcontainers; no DB mocks. `kit.py` holds what the test folders share: the scoped fixtures, the scripted `FakeModelRunner`, the bearer client and the SSE frame reader.
+- `tests/acceptance/test_walking_skeleton.py` — the twelve clauses of the first slice, one test each, through HTTP plus `work_once` in-process against the scripted model, and one real-provider smoke test that is skipped without `OPENROUTER_API_KEY`.
 
 Gates, from this directory: `uv run ruff check .`, `uv run pyright`, `uv run pytest` (traps in AGENTS.md, Gates).
 Postgres for Alembic and psql: `docker compose up -d db` at the repo root, then `DATABASE_URL=postgresql+psycopg://agentquilt:agentquilt@localhost:5432/agentquilt uv run alembic upgrade head`; `DATABASE_URL` is the only database setting (`alembic.ini` carries no URL; the compose services get it from `compose.yaml`).

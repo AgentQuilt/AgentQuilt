@@ -16,11 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.kernel.declare.registry import CallContext, registry
 from app.kernel.declare.service import Call, Committed, dispatch
 from app.kernel.runs.models import MailboxMessage, StepQueue
-from app.kernel.store.models import Principal, Run, Skill, SkillVersion
+from app.kernel.store.models import Principal, Run
 from app.kernel.store.service import session
 from app.modules.governance.service import NAME as DECIDE, UNDO
 from app.modules.skills.service import ACTIVATE
-from tests.kit import Scope, two_principals
+from tests.kit import Scope, dev_skill_version, two_principals
 from tests.kit_notes import grant
 
 pytestmark = pytest.mark.anyio
@@ -63,31 +63,11 @@ async def _committed(
     return outcome
 
 
-async def _skill_version(scoped: AsyncSession, org_id: UUID) -> str:
-    skill_id, version_id = uuid4(), str(uuid4())
-    scoped.add(Skill(id=skill_id, org_id=org_id, name=f"skill {skill_id}"))
-    await scoped.flush()
-    scoped.add(
-        SkillVersion(
-            id=version_id,
-            org_id=org_id,
-            skill_id=skill_id,
-            tier="executor",
-            execution_mode="inline",
-            operations={},
-            stage="DEV",
-            body="Answer from the notes.",
-        )
-    )
-    await scoped.flush()
-    return version_id
-
-
 async def test_action_written_and_undoable(person: Scope) -> None:
     """A reversible call records what undoing it needs, and undo queues that run."""
     org_id, principal_id = person
     async with session(org_id, principal_id) as scoped:
-        version_id = await _skill_version(scoped, org_id)
+        version_id = await dev_skill_version(scoped, org_id)
         activated = await _committed(
             scoped,
             principal_id,
