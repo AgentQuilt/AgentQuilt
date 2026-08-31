@@ -1,10 +1,10 @@
 """Who a caller is, what they may do, and what an approval is bound to.
 
-A pure function over the two tables, with no port and no policy engine behind it
-(ADR-0026): dispatch is the only caller, so when a second evaluator ever appears
-these inputs can be serialised without a module changing. The two approval
-functions are the other half of that call: dispatch consumes an open approval or
-parks the call, both inside its own transaction.
+Plain functions over the two tables, with no port and no policy engine behind
+them (ADR-0026): dispatch is the only caller of the grant read, so when a second
+evaluator ever appears these inputs can be serialised without a module changing.
+The two approval functions are the other half of that call: dispatch consumes an
+open approval or parks the call, both inside its own transaction.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.kernel.declare.models import Json
 from app.kernel.identity.models import Approval, Grant
 from app.kernel.store.models import Principal, UserToken
+from app.kernel.store.service import engine
 
 # Prefixed and separated so a hash over one field's value can never collide with
 # a hash over another's (ADR-0004, the consume-once predicate).
@@ -34,17 +35,38 @@ _LIFETIME = timedelta(hours=72)
 _PARKED = ("requested", "rejected", "expired")
 
 
-async def resolve(session: AsyncSession, token: str) -> Principal | None:
-    """The user principal a live token names, or None for revoked and unknown."""
-    return await session.scalar(
-        select(Principal)
-        .join(UserToken, UserToken.user_id == Principal.user_id)
-        .where(
-            UserToken.token_hash == hashlib.sha256(token.encode()).hexdigest(),
-            UserToken.revoked_at.is_(None),
-            Principal.class_ == "user",
-        )
-    )
+@dataclass(frozen=True, slots=True)
+class Caller:
+    """The org a live bearer token opens and the principal it acts as."""
+
+    org_id: UUID
+    principal_id: UUID
+
+
+async def resolve(token: str) -> Caller | None:
+    """Who a live bearer token names, or None for revoked and unknown.
+
+    The one identity read that cannot be made through a scoped session: serve has
+    to know the org before `store.session` can open one. It runs on the connecting
+    role rather than `agentquilt_app`, the same harness workaround `store.tenants`
+    carries and with the same trigger.
+    """
+    async with engine().connect() as connection:
+        row = (
+            await connection.execute(
+                select(Principal.org_id, Principal.id)
+                .join(UserToken, UserToken.user_id == Principal.user_id)
+                .where(
+                    UserToken.token_hash == hashlib.sha256(token.encode()).hexdigest(),
+                    UserToken.revoked_at.is_(None),
+                    Principal.class_ == "user",
+                )
+            )
+        ).first()
+    if row is None:
+        return None
+    org_id, principal_id = row
+    return Caller(org_id, principal_id)
 
 
 async def effective_grants(

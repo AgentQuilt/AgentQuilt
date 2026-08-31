@@ -22,7 +22,7 @@ from app.kernel.identity.service import (
     effective_grants,
     resolve,
 )
-from app.kernel.store.models import UserToken
+from app.kernel.store.models import Principal, UserToken
 from app.kernel.store.seed import UNDOABLE_OPERATION, SeededOrg, seed
 from app.kernel.store.service import session
 from tests.kit import START, FakeClock
@@ -82,13 +82,17 @@ def _consume(org: SeededOrg, version_id: str, digest: str) -> Consume:
 
 
 async def test_resolve_token(org: SeededOrg) -> None:
+    """The read serve makes before it has a session, so it takes only the token."""
+    caller = await resolve(org.token)
+    assert caller is not None
+    assert caller.org_id == org.org_id
     async with session(org.org_id, org.system_principal_id) as scoped:
-        principal = await resolve(scoped, org.token)
-        assert principal is not None
-        assert principal.class_ == "user"
-        assert principal.user_id == org.user_id
-        assert await resolve(scoped, "no-such-token") is None
-
+        assert (
+            await scoped.scalar(
+                select(Principal.user_id).where(Principal.id == caller.principal_id)
+            )
+            == org.user_id
+        )
         scoped.add(
             UserToken(
                 id=uuid4(),
@@ -98,8 +102,10 @@ async def test_resolve_token(org: SeededOrg) -> None:
                 revoked_at=START,
             )
         )
-        await scoped.flush()
-        assert await resolve(scoped, REVOKED) is None
+        await scoped.commit()
+
+    assert await resolve("no-such-token") is None
+    assert await resolve(REVOKED) is None
 
 
 async def test_effective_grants_maps_rows(org: SeededOrg) -> None:

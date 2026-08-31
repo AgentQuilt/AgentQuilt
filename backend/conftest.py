@@ -1,11 +1,15 @@
+import asyncio
 import os
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
+import uvicorn
 from alembic import command
 from alembic.config import Config
 from testcontainers.community.postgres import PostgresContainer
+
+from app.main import app
 
 BACKEND = Path(__file__).resolve().parent
 
@@ -35,3 +39,22 @@ def migrated_url(postgres_url: str) -> str:
     os.environ["DATABASE_URL"] = postgres_url
     command.upgrade(alembic_config(), "head")
     return postgres_url
+
+
+@pytest.fixture(scope="session")
+async def serve_url(migrated_url: str) -> AsyncIterator[str]:
+    """The app on a real socket for the session.
+
+    A stream test needs a client that can hang up mid-response, and httpx's ASGI
+    transport buffers the whole body before it returns one, so an endless SSE
+    response never arrives through it.
+    """
+    server = uvicorn.Server(
+        uvicorn.Config(app, host="127.0.0.1", port=0, log_level="warning")
+    )
+    serving = asyncio.create_task(server.serve())
+    while not server.started:
+        await asyncio.sleep(0.01)
+    yield f"http://127.0.0.1:{server.servers[0].sockets[0].getsockname()[1]}"
+    server.should_exit = True
+    await serving

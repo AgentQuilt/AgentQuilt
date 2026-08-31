@@ -8,23 +8,30 @@ import importlib
 import os
 import socket
 
+import uvicorn
 from fastapi import FastAPI
 
 from app.kernel.declare.catalog import PAGE, render
 from app.kernel.declare.registry import registry
 from app.kernel.model.adapter import PydanticAIModelRunner
+from app.kernel.runs.router import router as runs_router
 from app.kernel.runs.tick import tick_once
 from app.kernel.runs.work import work_once
 from app.kernel.store.seed import seed
 from app.kernel.store.service import tenants
+from app.modules.governance.router import router as governance_router
 
 ROLES = ("serve", "work", "tick", "seed")
 # ADR-0019: one-second polling is fine at this scale, and LISTEN/NOTIFY waits
 # for a measured idle-poll cost.
 POLL_SECONDS = 1.0
 
-# The ASGI target the `serve` role will be started against; empty until wave 9.
+# Importing the modules package is what declares their operations, for the
+# catalog and for dispatch alike; the two routers are the whole HTTP surface.
+importlib.import_module("app.modules")
 app = FastAPI()
+app.include_router(runs_router)
+app.include_router(governance_router)
 
 
 async def work() -> None:
@@ -33,7 +40,6 @@ async def work() -> None:
     `SKIP LOCKED` is what makes N of these safe against each other, so the loop
     itself needs no coordination — only a name to lease under.
     """
-    importlib.import_module("app.modules")
     runner = PydanticAIModelRunner()
     worker_id = f"{socket.gethostname()}:{os.getpid()}"
     while True:
@@ -64,8 +70,6 @@ def main() -> int:
         subparsers.add_parser(command)
     args = parser.parse_args()
     if args.role == "catalog":
-        # Importing the modules package is what declares their operations.
-        importlib.import_module("app.modules")
         PAGE.write_text(render(registry))
         print(f"agentquilt: wrote {PAGE}")
         return 0
@@ -76,7 +80,9 @@ def main() -> int:
     if args.role in ("work", "tick"):
         asyncio.run(work() if args.role == "work" else tick())
         return 0
-    print(f"agentquilt: role {args.role}")
+    # What is left is `serve`. The app binds every interface because the
+    # container is what decides which of them reaches the port.
+    uvicorn.run(app, host="0.0.0.0", port=8000)
     return 0
 
 
