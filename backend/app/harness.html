@@ -106,11 +106,11 @@
         const mine = ++watching;
         const path = `/runs/${runId}/events`;
         field("events").replaceChildren();
-        let cursor = 0;
+        let cursor = "0";
         while (mine === watching) {
           try {
             const response = await fetch(path, {
-              headers: authorized({ "Last-Event-ID": String(cursor) }),
+              headers: authorized({ "Last-Event-ID": cursor }),
             });
             line.textContent = `GET ${path} ${response.status}`;
             if (!response.ok) return;
@@ -132,7 +132,7 @@
                 buffer = buffer.slice(cut + 2);
                 const frame = frameOf(block);
                 if (!frame.data) continue;
-                cursor = Number(frame.id);
+                cursor = frame.id;
                 show(frame);
               }
             }
