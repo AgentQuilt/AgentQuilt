@@ -84,7 +84,11 @@ def main() -> int:
         return 0
     if args.role == "seed":
         for org in asyncio.run(seed()):
-            print(f"org {org.org_id} user {org.user_id} token {org.token}")
+            print(
+                f"org {org.org_id} dev {org.dev_environment_id}"
+                f" prod {org.prod_environment_id}"
+                f" user {org.user_id} token {org.token}"
+            )
         return 0
     if args.role in ("work", "tick"):
         asyncio.run(work() if args.role == "work" else tick())

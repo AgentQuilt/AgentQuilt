@@ -13,7 +13,13 @@ from uuid import UUID
 from sqlalchemy import ForeignKey, Integer, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.kernel.store.models import Base, created_at_column
+from app.kernel.store.models import (
+    Base,
+    created_at_column,
+    environment_id_column,
+    environment_scope,
+    scope_fk,
+)
 
 class TierBinding(Base):
     """What a tier resolves to right now: a provider, a model and an effort.
@@ -40,11 +46,16 @@ class UsageRecord(Base):
     """One row per model call: what the turn cost, against the run's budget cap."""
 
     __tablename__ = "usage_record"
+    __table_args__ = (
+        environment_scope("usage_record"),
+        scope_fk("usage_record", "run_id", "run"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.org.id", name="fk_usage_record_org")
     )
+    environment_id: Mapped[UUID] = environment_id_column()
     run_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.run.id", name="fk_usage_record_run")
     )

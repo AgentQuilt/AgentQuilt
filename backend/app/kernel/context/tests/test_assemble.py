@@ -66,6 +66,7 @@ def _registry() -> Registry:
 @dataclass(frozen=True, slots=True)
 class Setup:
     org_id: UUID
+    environment_id: UUID
     principal_id: UUID
     run: Run
 
@@ -78,8 +79,8 @@ async def setup(migrated_url: str) -> Setup:
     since the owner's D2 fell due, so a full prefix needs the modules loaded.
     """
     importlib.import_module("app.modules")
-    (org_id, system_id), _ = await two_principals(migrated_url)
-    async with session(org_id, system_id) as scoped:
+    (org_id, environment_id, system_id), _ = await two_principals(migrated_url)
+    async with session(org_id, environment_id, system_id) as scoped:
         agent_id = (await scoped.scalars(select(AgentDefinition.id))).one()
         principal_id = (
             await scoped.scalars(
@@ -127,11 +128,18 @@ async def setup(migrated_url: str) -> Setup:
         )
         scoped.add(run)
         await scoped.commit()
-    return Setup(org_id=org_id, principal_id=principal_id, run=run)
+    return Setup(
+        org_id=org_id,
+        environment_id=environment_id,
+        principal_id=principal_id,
+        run=run,
+    )
 
 
 async def _assemble(setup: Setup, step_no: int, call: Call = CALL) -> AssembledTurn:
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         assembled = await assemble(
             scoped, setup.run, step_no, call=call, registry=_registry()
         )
@@ -159,10 +167,14 @@ async def test_prefix_key_stable_across_turns(setup: Setup) -> None:
 
 async def test_manifest_persisted_per_call(setup: Setup) -> None:
     rows = select(func.count()).select_from(ContextManifest)
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         before = (await scoped.scalars(rows)).one()
     assembled = await _assemble(setup, 3)
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         after = (await scoped.scalars(rows)).one()
         manifest = await scoped.get_one(ContextManifest, assembled.manifest_id)
     assert after == before + 1
@@ -197,7 +209,9 @@ async def test_over_budget_drops_the_lowest_priority_slice(setup: Setup) -> None
 
 async def test_prefix_key_changes_with_layer_version(setup: Setup) -> None:
     before = await _assemble(setup, 7)
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         await scoped.execute(
             update(AgentDefinition)
             .where(AgentDefinition.id == setup.run.agent_definition_id)
@@ -212,11 +226,15 @@ async def test_prefix_key_changes_with_tier_binding(setup: Setup) -> None:
     before = await _assemble(setup, 9)
     rebind = update(TierBinding).values(model="z-ai/glm-5.3")
     restore = update(TierBinding).values(model=before.binding.model)
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         await scoped.execute(rebind)
         await scoped.commit()
     rebound = await _assemble(setup, 10)
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         await scoped.execute(restore)
         await scoped.commit()
     assert rebound.prefix_key != before.prefix_key

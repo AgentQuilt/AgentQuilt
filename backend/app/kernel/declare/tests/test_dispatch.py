@@ -88,18 +88,18 @@ def _commits(aggregate: UUID) -> Select[tuple[int]]:
 async def test_retry_returns_stored_action(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
-    org, principal = scopes[0]
+    org, environment, principal = scopes[0]
     run, note_id = uuid4(), uuid4()
     call = _write(note_id, "first", "tc-retry")
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         first = await dispatch(_ctx(scoped, principal, notes, run), call)
         await scoped.commit()
     assert isinstance(first, Committed)
     assert first.action is not None
     assert first.result == {"note_id": str(note_id)}
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         again = await dispatch(_ctx(scoped, principal, notes, run), call)
         await scoped.commit()
         assert isinstance(again, Replayed)
@@ -111,10 +111,10 @@ async def test_retry_returns_stored_action(
 async def test_denied_call_writes_denial_event(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
-    (org_a, principal_a), (org_b, principal_b) = scopes
+    (org_a, env_a, principal_a), (org_b, env_b, principal_b) = scopes
     note_id = uuid4()
 
-    async with session(org_b, principal_b) as scoped:
+    async with session(org_b, env_b, principal_b) as scoped:
         outcome = await dispatch(
             _ctx(scoped, principal_b, notes, uuid4()),
             _write(note_id, "not allowed", "tc-denied"),
@@ -129,7 +129,7 @@ async def test_denied_call_writes_denial_event(
         assert await scoped.scalar(_RESERVATIONS, {"name": WRITE}) == 0
         assert await scoped.get(Event, outcome.event.id) is not None
 
-    async with session(org_a, principal_a) as scoped:
+    async with session(org_a, env_a, principal_a) as scoped:
         assert await scoped.get(Event, outcome.event.id) is None
 
 
@@ -140,8 +140,8 @@ async def test_asks_first_without_a_run_is_denied(
 
     What an `asks_first` call inside a run does is `test_approval_flow.py`.
     """
-    org, principal = scopes[1]
-    async with session(org, principal) as scoped:
+    org, environment, principal = scopes[1]
+    async with session(org, environment, principal) as scoped:
         outcome = await dispatch(
             CallContext(
                 session=scoped,
@@ -160,17 +160,17 @@ async def test_asks_first_without_a_run_is_denied(
 async def test_version_conflict_rolls_the_operation_back(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
-    org, principal = scopes[0]
+    org, environment, principal = scopes[0]
     note_id = uuid4()
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         await dispatch(
             _ctx(scoped, principal, notes, uuid4()),
             _write(note_id, "first", "tc-conflict-a"),
         )
         await scoped.commit()
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         outcome = await dispatch(
             _ctx(scoped, principal, notes, uuid4()),
             _write(note_id, "second", "tc-conflict-b"),
@@ -188,8 +188,8 @@ async def test_version_conflict_rolls_the_operation_back(
 async def test_read_appends_audit_and_no_action(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
-    org, principal = scopes[0]
-    async with session(org, principal) as scoped:
+    org, environment, principal = scopes[0]
+    async with session(org, environment, principal) as scoped:
         outcome = await dispatch(
             _ctx(scoped, principal, notes, uuid4()),
             Call(operation_name=LIST, args={}, tool_call_id="tc-read"),
@@ -217,10 +217,10 @@ async def test_read_appends_audit_and_no_action(
 async def test_compensator_args_are_the_result(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
-    org, principal = scopes[0]
+    org, environment, principal = scopes[0]
     note_id = uuid4()
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         written = await dispatch(
             _ctx(scoped, principal, notes, uuid4()),
             _write(note_id, "compensate me", "tc-comp-write"),
@@ -233,7 +233,7 @@ async def test_compensator_args_are_the_result(
     assert compensator_args is not None
     assert compensator_args == {"note_id": str(note_id)}
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         undone = await dispatch(
             _ctx(scoped, principal, notes, uuid4()),
             Call(
@@ -251,8 +251,8 @@ async def test_compensator_args_are_the_result(
 async def test_published_version_matches_action(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
-    org, principal = scopes[0]
-    async with session(org, principal) as scoped:
+    org, environment, principal = scopes[0]
+    async with session(org, environment, principal) as scoped:
         await notes.publish(scoped)
         outcome = await dispatch(
             _ctx(scoped, principal, notes, uuid4()),

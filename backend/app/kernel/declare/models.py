@@ -26,7 +26,14 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.kernel.store.models import Base, Json
+from app.kernel.store.models import (
+    Base,
+    Json,
+    environment_id_column,
+    environment_scope,
+    scope_fk,
+    scope_parent,
+)
 
 NOW = text("now()")
 
@@ -63,10 +70,16 @@ class Event(Base):
             unique=True,
             postgresql_where=text("kind = 'operation_commit'"),
         ),
+        environment_scope("event"),
+        scope_parent("event"),
+        scope_fk("event", "run_id", "run"),
+        # The 0002 pairing settles at COMMIT, in both directions.
+        scope_fk("event", "action_id", "action", deferred=True),
     )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     org_id: Mapped[UUID] = _org_id("event")
+    environment_id: Mapped[UUID] = environment_id_column()
     kind: Mapped[str] = mapped_column(Text)
     aggregate_kind: Mapped[str] = mapped_column(Text)
     aggregate_id: Mapped[UUID] = mapped_column()
@@ -98,9 +111,12 @@ class StreamHead(Base):
     __tablename__ = "stream_head"
     __table_args__ = (
         PrimaryKeyConstraint("org_id", "aggregate_kind", "aggregate_id"),
+        environment_scope("stream_head"),
+        scope_fk("stream_head", "last_event_id", "event"),
     )
 
     org_id: Mapped[UUID] = _org_id("stream_head")
+    environment_id: Mapped[UUID] = environment_id_column()
     aggregate_kind: Mapped[str] = mapped_column(Text)
     aggregate_id: Mapped[UUID] = mapped_column()
     version: Mapped[int] = mapped_column(Integer)
@@ -130,10 +146,16 @@ class Action(Base):
     """One per operation-commit event, and never more (`uq_action_event`)."""
 
     __tablename__ = "action"
-    __table_args__ = (UniqueConstraint("event_id", name="uq_action_event"),)
+    __table_args__ = (
+        UniqueConstraint("event_id", name="uq_action_event"),
+        environment_scope("action"),
+        scope_parent("action"),
+        scope_fk("action", "event_id", "event"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = _org_id("action")
+    environment_id: Mapped[UUID] = environment_id_column()
     event_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("core.event.id", name="fk_action_event")
     )
@@ -157,9 +179,12 @@ class IdempotencyKey(Base):
     __tablename__ = "idempotency_key"
     __table_args__ = (
         PrimaryKeyConstraint("org_id", "operation_name", "idempotency_key"),
+        environment_scope("idempotency_key"),
+        scope_fk("idempotency_key", "action_id", "action"),
     )
 
     org_id: Mapped[UUID] = _org_id("idempotency_key")
+    environment_id: Mapped[UUID] = environment_id_column()
     operation_name: Mapped[str] = mapped_column(Text)
     idempotency_key: Mapped[str] = mapped_column(Text)
     action_id: Mapped[UUID | None] = mapped_column(

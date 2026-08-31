@@ -37,10 +37,9 @@ from app.kernel.ports.model_runner import Completion, ModelRunner, ProposedCall
 from app.kernel.runs.models import Checkpoint, MailboxMessage, StepQueue
 from app.kernel.runs.service import AGGREGATE, QUEUE_TAG, events, post
 from app.kernel.store.models import Json, Run
-from app.kernel.store.service import session as open_session
+from app.kernel.store.service import Scope, session as open_session
 
 Clock = Callable[[], datetime]
-Scope = tuple[UUID, UUID]
 
 # How long a claim is good for. Longer than a step and short enough that a dead
 # worker's step is picked up while the person who started it is still watching.

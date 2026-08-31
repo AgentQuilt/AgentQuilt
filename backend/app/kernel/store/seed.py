@@ -17,10 +17,20 @@ from sqlalchemy.dialects.postgresql import insert
 from app.kernel.declare.registry import registry
 from app.kernel.identity.models import Grant
 from app.kernel.model.models import TierBinding
-from app.kernel.store.models import AgentDefinition, Org, Principal, User, UserToken
+from app.kernel.store.models import (
+    AgentDefinition,
+    Environment,
+    Org,
+    Principal,
+    User,
+    UserToken,
+)
 from app.kernel.store.service import session
 
 ORG_NAMES = ("Org A", "Org B")
+# The two planes every org starts with (ADR-0028 D2); prod is the protected one,
+# and the one a session opens when nothing names another.
+PLANES = (("dev", 0), ("prod", 1))
 # The migration fixes the four tier names; what a tier resolves to is data, and
 # this is the deployment's first row of it. Deployment-global, so it carries a
 # fixed id and a second seed run leaves the row alone.
@@ -45,6 +55,8 @@ SOUL_TEXT = (
 @dataclass(frozen=True, slots=True)
 class SeededOrg:
     org_id: UUID
+    dev_environment_id: UUID
+    prod_environment_id: UUID
     system_principal_id: UUID
     user_id: UUID
     token: str
@@ -55,11 +67,27 @@ async def seed() -> list[SeededOrg]:
     for name in ORG_NAMES:
         org_id, system_principal_id = uuid4(), uuid4()
         user_principal_id, user_id = uuid4(), uuid4()
+        planes = {key: uuid4() for key, _ in PLANES}
         token = secrets.token_urlsafe(32)
-        async with session(org_id, system_principal_id) as scoped:
+        # The plane ids are minted here rather than read back, because the session
+        # that writes the two rows already has to name the one it is opened on.
+        async with session(org_id, planes["prod"], system_principal_id) as scoped:
             # No relationships are mapped, so the unit of work has no dependency
             # graph and orders inserts by mapper name: the parents flush first.
             scoped.add(Org(id=org_id, name=name))
+            await scoped.flush()
+            for key, protection in PLANES:
+                scoped.add(
+                    Environment(
+                        id=planes[key],
+                        org_id=org_id,
+                        key=key,
+                        kind=key,
+                        protection_level=protection,
+                    )
+                )
+            # Before any env-scoped row: the plane column defaults from the GUC,
+            # and its foreign key names one of these two.
             await scoped.flush()
             scoped.add(User(id=user_id, org_id=org_id, display_name=f"{name} owner"))
             await scoped.flush()
@@ -112,7 +140,16 @@ async def seed() -> list[SeededOrg]:
                     )
                 )
             await scoped.commit()
-        seeded.append(SeededOrg(org_id, system_principal_id, user_id, token))
+        seeded.append(
+            SeededOrg(
+                org_id,
+                planes["dev"],
+                planes["prod"],
+                system_principal_id,
+                user_id,
+                token,
+            )
+        )
     await _write_global_rows(seeded[0])
     return seeded
 
@@ -122,7 +159,9 @@ async def _write_global_rows(org: SeededOrg) -> None:
     always org-scoped, so the first seeded org opens the one they are written
     through. Dispatch's approval rows carry an operation version id, so without
     this the first action an agent proposes fails on the foreign key."""
-    async with session(org.org_id, org.system_principal_id) as scoped:
+    async with session(
+        org.org_id, org.prod_environment_id, org.system_principal_id
+    ) as scoped:
         await scoped.execute(
             insert(TierBinding)
             .values(EXECUTOR_BINDING)

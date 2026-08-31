@@ -74,6 +74,7 @@ def _never(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
 @dataclass(frozen=True, slots=True)
 class Setup:
     org_id: UUID
+    environment_id: UUID
     principal_id: UUID
     agent_definition_id: UUID
 
@@ -81,8 +82,8 @@ class Setup:
 @pytest.fixture(scope="module")
 async def setup(migrated_url: str) -> Setup:
     """One org, its user principal granted the one operation the model is offered."""
-    (org_id, system_id), _ = await two_principals(migrated_url)
-    async with session(org_id, system_id) as scoped:
+    (org_id, environment_id, system_id), _ = await two_principals(migrated_url)
+    async with session(org_id, environment_id, system_id) as scoped:
         agent_id = (await scoped.scalars(select(AgentDefinition.id))).one()
         principal_id = (
             await scoped.scalars(
@@ -100,7 +101,7 @@ async def setup(migrated_url: str) -> Setup:
             )
         )
         await scoped.commit()
-    return Setup(org_id, principal_id, agent_id)
+    return Setup(org_id, environment_id, principal_id, agent_id)
 
 
 async def _run_row(setup: Setup, budget_cap_tokens: int) -> Run:
@@ -116,7 +117,9 @@ async def _run_row(setup: Setup, budget_cap_tokens: int) -> Run:
         capability_ceiling={"operations": {OPERATION: "may_use"}},
         prefix_profile="personal",
     )
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         scoped.add(run)
         await scoped.commit()
     return run
@@ -128,7 +131,9 @@ async def _turn(setup: Setup, run: Run) -> AssembledTurn:
     registry.operation(
         OPERATION, Declares(mode="write", reversal="irreversible", stage="PROD")
     )(_write_note)
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         assembled = await assemble(scoped, run, step_no=1, call=CALL, registry=registry)
         await scoped.commit()
     return assembled
@@ -137,14 +142,18 @@ async def _turn(setup: Setup, run: Run) -> AssembledTurn:
 async def _answer(
     setup: Setup, assembled: AssembledTurn, run: Run, runner: ModelRunner
 ) -> model.Outcome:
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         outcome = await model.run(scoped, assembled, run, runner=runner)
         await scoped.commit()
     return outcome
 
 
 async def _usage(setup: Setup, run: Run) -> list[UsageRecord]:
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         return list(
             await scoped.scalars(
                 select(UsageRecord).where(UsageRecord.run_id == run.id)
@@ -179,7 +188,9 @@ async def test_fake_model_proposes_action(setup: Setup) -> None:
     assert usage.tier == "executor"
     assert usage.input_tokens == outcome.completion.usage.input_tokens
     assert usage.output_tokens == outcome.completion.usage.output_tokens
-    async with session(setup.org_id, setup.principal_id) as scoped:
+    async with session(
+        setup.org_id, setup.environment_id, setup.principal_id
+    ) as scoped:
         manifest = await scoped.get_one(ContextManifest, assembled.manifest_id)
     # The cache position is where the prefix ends, so it plus the envelope is
     # the whole prompt the manifest costed.

@@ -18,9 +18,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.kernel.identity.models import Approval
 from app.kernel.runs.models import StepQueue
 from app.kernel.runs.service import QUEUE_TAG
-from app.kernel.runs.work import Clock, Scope, now
+from app.kernel.runs.work import Clock, now
 from app.kernel.store.models import Run
-from app.kernel.store.service import session as open_session
+from app.kernel.store.service import Scope, session as open_session
 
 # One deployment-wide key; any constant does, as long as only `tick` takes it.
 LEADER_KEY = 0x41510008

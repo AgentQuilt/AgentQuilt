@@ -27,7 +27,9 @@ pytestmark = pytest.mark.anyio
 async def orgs(migrated_url: str) -> tuple[SeededOrg, SeededOrg]:
     """Two orgs: one whose person may undo, one whose person was granted nothing."""
     granted, ungranted = await seed()
-    async with session(granted.org_id, granted.system_principal_id) as scoped:
+    async with session(
+        granted.org_id, granted.prod_environment_id, granted.system_principal_id
+    ) as scoped:
         await registry.publish(scoped)
         person = (
             await scoped.scalars(select(Principal.id).where(Principal.class_ == "user"))

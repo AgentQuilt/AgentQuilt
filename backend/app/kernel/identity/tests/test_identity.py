@@ -51,7 +51,9 @@ async def org(orgs: list[SeededOrg]) -> SeededOrg:
 async def version_id(org: SeededOrg) -> str:
     """An `operation_version` row to hang approvals off; the toy kit publishes it."""
     registry = notes_registry()
-    async with session(org.org_id, org.system_principal_id) as scoped:
+    async with session(
+        org.org_id, org.prod_environment_id, org.system_principal_id
+    ) as scoped:
         await registry.publish(scoped)
         await scoped.commit()
     return registry.version_id(registry.get("note.write_note"))
@@ -92,7 +94,9 @@ async def test_resolve_token(org: SeededOrg) -> None:
     caller = await resolve(org.token)
     assert caller is not None
     assert caller.org_id == org.org_id
-    async with session(org.org_id, org.system_principal_id) as scoped:
+    async with session(
+        org.org_id, org.prod_environment_id, org.system_principal_id
+    ) as scoped:
         assert (
             await scoped.scalar(
                 select(Principal.user_id).where(Principal.id == caller.principal_id)
@@ -124,7 +128,9 @@ async def test_resolve_refuses_a_token_naming_another_org(
     token across the tenant boundary.
     """
     org, other = orgs
-    async with session(other.org_id, other.system_principal_id) as scoped:
+    async with session(
+        other.org_id, other.prod_environment_id, other.system_principal_id
+    ) as scoped:
         scoped.add(
             UserToken(
                 id=uuid4(),
@@ -139,7 +145,9 @@ async def test_resolve_refuses_a_token_naming_another_org(
 
 
 async def test_effective_grants_maps_rows(org: SeededOrg) -> None:
-    async with session(org.org_id, org.system_principal_id) as scoped:
+    async with session(
+        org.org_id, org.prod_environment_id, org.system_principal_id
+    ) as scoped:
         for name, level in (("note.write_note", "asks_first"), ("note.x", "never")):
             scoped.add(
                 Grant(
@@ -180,7 +188,9 @@ async def test_consume_requires_open_and_binding(
 ) -> None:
     digest = args_hash(version_id, ARGS)
     other_digest = args_hash(version_id, ARGS | {"body": "b"})
-    async with session(org.org_id, org.system_principal_id) as scoped:
+    async with session(
+        org.org_id, org.prod_environment_id, org.system_principal_id
+    ) as scoped:
         opened = _approval(org, version_id, digest, "open")
         scoped.add(opened)
         scoped.add(_approval(org, version_id, other_digest, "requested"))
@@ -207,7 +217,9 @@ async def test_expired_open_approval_does_not_consume(
 ) -> None:
     clock = FakeClock()
     digest = args_hash(version_id, ARGS | {"body": "expired"})
-    async with session(org.org_id, org.system_principal_id) as scoped:
+    async with session(
+        org.org_id, org.prod_environment_id, org.system_principal_id
+    ) as scoped:
         stale = _approval(org, version_id, digest, "open")
         stale.expires_at = clock.now() - timedelta(hours=1)
         scoped.add(stale)

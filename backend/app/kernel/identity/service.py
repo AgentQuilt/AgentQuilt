@@ -20,9 +20,9 @@ import rfc8785
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.kernel.declare.models import Json
+from app.kernel.declare.models import Action, Json
 from app.kernel.identity.models import Approval, Grant
-from app.kernel.store.models import Principal, UserToken
+from app.kernel.store.models import Environment, Principal, Run, UserToken
 from app.kernel.store.service import engine
 
 # Prefixed and separated so a hash over one field's value can never collide with
@@ -33,6 +33,9 @@ _SEPARATOR = b"\x00"
 _LIFETIME = timedelta(hours=72)
 # States a parked call may already have been left in; the rest mean it moved on.
 _PARKED = ("requested", "rejected", "expired")
+# The three identifiers an HTTP call is addressed by, and the table each names.
+# All three carry the scope pair after the rail, so one read answers for any.
+LOCATABLE = {"run_id": Run, "approval_id": Approval, "action_id": Action}
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +75,42 @@ async def resolve(token: str) -> Caller | None:
         return None
     org_id, principal_id = row
     return Caller(org_id, principal_id)
+
+
+async def locate(kind: str, row_id: UUID, org_id: UUID) -> UUID | None:
+    """The plane one identifier-addressed row lives on, or None for another org's.
+
+    The second read of `resolve`'s class and for the same reason: an id arrives
+    before any plane is known, and two-key row-level security will not answer a
+    question whose second key is the one being asked for. Same connecting role,
+    the same dated harness workaround with the same trigger, and the same
+    narrowness — the org is a predicate, not a result, so a row of another org
+    reads as missing rather than located, and nothing but the plane comes back.
+    Pure, so a retry re-runs it.
+    """
+    table = LOCATABLE[kind]
+    async with engine().connect() as connection:
+        return await connection.scalar(
+            select(table.environment_id).where(
+                table.id == row_id, table.org_id == org_id
+            )
+        )
+
+
+async def prod_plane(org_id: UUID) -> UUID:
+    """The plane a call that names no row runs on: the org's protected one.
+
+    Thread creation has no identifier to locate from, and every org carries this
+    row from the moment it is seeded, so a missing one is a broken deployment.
+    """
+    async with engine().connect() as connection:
+        return (
+            await connection.scalars(
+                select(Environment.id).where(
+                    Environment.org_id == org_id, Environment.kind == "prod"
+                )
+            )
+        ).one()
 
 
 async def effective_grants(

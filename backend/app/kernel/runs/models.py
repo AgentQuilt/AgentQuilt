@@ -22,18 +22,30 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.kernel.store.models import Base, Json, created_at_column
+from app.kernel.store.models import (
+    Base,
+    Json,
+    created_at_column,
+    environment_id_column,
+    environment_scope,
+    scope_fk,
+)
 
 
 class StepQueue(Base):
     """One row per step waiting to be worked; the lease is who holds it now."""
 
     __tablename__ = "step_queue"
-    __table_args__ = (PrimaryKeyConstraint("run_id", "step_no"),)
+    __table_args__ = (
+        PrimaryKeyConstraint("run_id", "step_no"),
+        environment_scope("step_queue"),
+        scope_fk("step_queue", "run_id", "run"),
+    )
 
     org_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.org.id", name="fk_step_queue_org")
     )
+    environment_id: Mapped[UUID] = environment_id_column()
     run_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.run.id", name="fk_step_queue_run")
     )
@@ -53,12 +65,15 @@ class MailboxMessage(Base):
             name="ck_mailbox_message_kind",
         ),
         UniqueConstraint("run_id", "seq", name="uq_mailbox_message_run_seq"),
+        environment_scope("mailbox_message"),
+        scope_fk("mailbox_message", "run_id", "run"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.org.id", name="fk_mailbox_message_org")
     )
+    environment_id: Mapped[UUID] = environment_id_column()
     run_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.run.id", name="fk_mailbox_message_run")
     )
@@ -75,11 +90,16 @@ class Checkpoint(Base):
     """What one finished step left behind, for the next step to resume from."""
 
     __tablename__ = "checkpoint"
+    __table_args__ = (
+        environment_scope("checkpoint"),
+        scope_fk("checkpoint", "run_id", "run"),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.org.id", name="fk_checkpoint_org")
     )
+    environment_id: Mapped[UUID] = environment_id_column()
     run_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.run.id", name="fk_checkpoint_run")
     )

@@ -40,7 +40,7 @@ async def person(migrated_url: str) -> Scope:
         for name in (ACTIVATE, DECIDE, UNDO):
             await grant(scoped, principal_id, name, "may_use")
         await scoped.commit()
-    return first[0], principal_id
+    return first[0], first[1], principal_id
 
 
 def _ctx(scoped: AsyncSession, principal_id: UUID) -> CallContext:
@@ -65,8 +65,8 @@ async def _committed(
 
 async def test_action_written_and_undoable(person: Scope) -> None:
     """A reversible call records what undoing it needs, and undo queues that run."""
-    org_id, principal_id = person
-    async with session(org_id, principal_id) as scoped:
+    org_id, environment_id, principal_id = person
+    async with session(org_id, environment_id, principal_id) as scoped:
         version_id = await dev_skill_version(scoped, org_id)
         activated = await _committed(
             scoped,
@@ -99,7 +99,7 @@ async def test_action_written_and_undoable(person: Scope) -> None:
 
     assert undone.result["compensator"] == ACTIVATE
     compensating = UUID(str(undone.result["undo_run_id"]))
-    async with session(org_id, principal_id) as scoped:
+    async with session(org_id, environment_id, principal_id) as scoped:
         run = await scoped.get_one(Run, compensating)
         queued = await scoped.scalars(
             select(StepQueue.step_no).where(StepQueue.run_id == compensating)
@@ -120,8 +120,8 @@ async def test_action_written_and_undoable(person: Scope) -> None:
 
 async def test_irreversible_undo_refused_with_reason(person: Scope) -> None:
     """An operation that names no compensator says so, and nothing is queued."""
-    org_id, principal_id = person
-    async with session(org_id, principal_id) as scoped:
+    org_id, environment_id, principal_id = person
+    async with session(org_id, environment_id, principal_id) as scoped:
         decided = await _committed(
             scoped,
             principal_id,

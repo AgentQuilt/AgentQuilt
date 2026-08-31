@@ -20,7 +20,7 @@ from sqlalchemy import select
 from app.kernel.runs.service import Ended, create, events, send
 from app.kernel.store.models import AgentDefinition
 from app.kernel.store.service import session
-from app.serve import Scoped, Who
+from app.serve import Plane, Scoped, Who
 
 router = APIRouter()
 
@@ -72,6 +72,7 @@ async def steer_run(run_id: UUID, message: Message, db: Scoped) -> Posted:
 async def stream_events(
     run_id: UUID,
     who: Who,
+    environment_id: Plane,
     last_event_id: Annotated[int, Header(alias="Last-Event-ID")] = 0,
 ) -> AsyncIterable[ServerSentEvent]:
     """The run's ledger stream, resumed from the last event the client saw.
@@ -84,7 +85,7 @@ async def stream_events(
     while True:
         # A session per pass, so the reader sees what has committed since the
         # last one and holds no transaction open while it writes to the socket.
-        async with session(who.org_id, who.principal_id) as db:
+        async with session(who.org_id, environment_id, who.principal_id) as db:
             batch = [
                 (
                     event.id,

@@ -21,7 +21,12 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.kernel.store.models import Base
+from app.kernel.store.models import (
+    Base,
+    environment_id_column,
+    environment_scope,
+    scope_fk,
+)
 
 NOW = text("now()")
 
@@ -66,10 +71,14 @@ class Approval(Base):
             name="ck_approval_state",
         ),
         Index("ix_approval_org_state", "org_id", "state"),
+        environment_scope("approval"),
+        scope_fk("approval", "run_id", "run"),
+        scope_fk("approval", "consumed_by_action_id", "action"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     org_id: Mapped[UUID] = _org_id("approval")
+    environment_id: Mapped[UUID] = environment_id_column()
     granted_to: Mapped[UUID] = mapped_column(
         ForeignKey("core.principal.id", name="fk_approval_granted_to")
     )

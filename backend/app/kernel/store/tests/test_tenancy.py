@@ -6,16 +6,18 @@ carries the scope, which is the thing every kernel module will depend on.
 
 from __future__ import annotations
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.runtime.migration import MigrationContext
 from sqlalchemy import Connection, select, text
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import DBAPIError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
+from app.kernel.declare.models import IdempotencyKey
 from app.kernel.store.models import Base, Org, User
+from app.kernel.store.seed import SeededOrg, seed
 from app.kernel.store.service import engine, session
 from tests.kit import Scope, two_principals
 
@@ -28,7 +30,7 @@ async def scopes(migrated_url: str) -> tuple[Scope, Scope]:
 
 
 async def test_org_b_cannot_read_org_a_rows(scopes: tuple[Scope, Scope]) -> None:
-    (org_a, _), (org_b, _) = scopes
+    (org_a, _, _), (org_b, _, _) = scopes
     async with session(*scopes[1]) as scoped:
         orgs = (await scoped.execute(select(Org.id))).scalars().all()
         users = (await scoped.execute(select(User.org_id))).scalars().all()
@@ -55,11 +57,68 @@ async def test_unscoped_session_sees_nothing(migrated_url: str) -> None:
 async def test_scoped_write_lands_in_own_org_only(
     scopes: tuple[Scope, Scope],
 ) -> None:
-    (_, _), (org_b, _) = scopes
+    (_, _, _), (org_b, _, _) = scopes
     async with session(*scopes[0]) as scoped:
         scoped.add(User(id=uuid4(), org_id=org_b, display_name="planted"))
         with pytest.raises(ProgrammingError, match="row-level security"):
             await scoped.flush()
+
+
+@pytest.fixture(scope="module")
+async def org(migrated_url: str) -> SeededOrg:
+    """One org and both its planes: the plane cases need the dev one by id."""
+    first, _ = await seed()
+    return first
+
+
+def _key(org_id: UUID, name: str) -> IdempotencyKey:
+    """The one env-scoped row that hangs off nothing, so a plane case can write
+    it without first building a run, an event and an action to point at."""
+    return IdempotencyKey(org_id=org_id, operation_name=name, idempotency_key=name)
+
+
+async def test_session_without_the_plane_fails_closed(
+    migrated_url: str, org: SeededOrg
+) -> None:
+    """The org GUC alone buys nothing. Its own engine, so the connection has
+    never carried a plane: the read is empty though the org owns rows, and the
+    write has no plane to default from."""
+    async with session(
+        org.org_id, org.prod_environment_id, org.system_principal_id
+    ) as scoped:
+        scoped.add(_key(org.org_id, "planed"))
+        await scoped.commit()
+    unplaned = create_async_engine(migrated_url)
+    try:
+        async with AsyncSession(unplaned) as plain:
+            await plain.execute(text("SET LOCAL ROLE agentquilt_app"))
+            await plain.execute(
+                text("SELECT set_config('app.org_id', :org, true)"),
+                {"org": str(org.org_id)},
+            )
+            rows = await plain.execute(select(IdempotencyKey.idempotency_key))
+            assert rows.scalars().all() == []
+            plain.add(_key(org.org_id, "unplaned"))
+            with pytest.raises(DBAPIError):
+                await plain.flush()
+    finally:
+        await unplaned.dispose()
+
+
+async def test_dev_plane_cannot_read_a_prod_row(org: SeededOrg) -> None:
+    """Same org, other plane: two-key policies hide it exactly as one key hides
+    another org's."""
+    prod = (org.org_id, org.prod_environment_id, org.system_principal_id)
+    dev = (org.org_id, org.dev_environment_id, org.system_principal_id)
+    async with session(*prod) as scoped:
+        scoped.add(_key(org.org_id, "prod-only"))
+        await scoped.commit()
+    async with session(*dev) as scoped:
+        seen = (await scoped.execute(select(IdempotencyKey.idempotency_key))).scalars()
+        assert list(seen) == []
+    async with session(*prod) as scoped:
+        seen = (await scoped.execute(select(IdempotencyKey.idempotency_key))).scalars()
+        assert list(seen) == ["prod-only"]
 
 
 # Migration 0003 expanded the schema ahead of the models: the plane column and

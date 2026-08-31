@@ -86,7 +86,9 @@ async def space(migrated_url: str) -> Deployment:
     """The deployment: two seeded orgs, the operations published, and org A's
     person granted the two governance operations a person calls by hand."""
     a, b = await seed()
-    async with session(a.org_id, a.system_principal_id) as scoped:
+    async with session(
+        a.org_id, a.prod_environment_id, a.system_principal_id
+    ) as scoped:
         await registry.publish(scoped)
         person = (
             await scoped.scalars(select(Principal.id).where(Principal.class_ == "user"))
@@ -94,7 +96,7 @@ async def space(migrated_url: str) -> Deployment:
         for name in (DECIDE, UNDO):
             await grant(scoped, person, name, "may_use")
         await scoped.commit()
-    return Deployment(a, b, (a.org_id, a.system_principal_id))
+    return Deployment(a, b, (a.org_id, a.prod_environment_id, a.system_principal_id))
 
 
 @pytest.fixture(autouse=True)

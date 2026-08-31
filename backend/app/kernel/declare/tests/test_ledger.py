@@ -78,8 +78,8 @@ def _event_count(aggregate: UUID) -> Select[tuple[int]]:
 
 
 async def test_app_role_cannot_insert_event(scopes: tuple[Scope, Scope]) -> None:
-    org, principal = scopes[0]
-    async with session(org, principal) as scoped:
+    org, environment, principal = scopes[0]
+    async with session(org, environment, principal) as scoped:
         scoped.add(
             Event(
                 org_id=org,
@@ -96,7 +96,7 @@ async def test_app_role_cannot_insert_event(scopes: tuple[Scope, Scope]) -> None
 
 
 async def test_commit_without_action_impossible(scopes: tuple[Scope, Scope]) -> None:
-    org, principal = scopes[0]
+    org, environment, principal = scopes[0]
 
     def _commit_event(action_id: UUID | None) -> Event:
         return Event(
@@ -111,13 +111,13 @@ async def test_commit_without_action_impossible(scopes: tuple[Scope, Scope]) -> 
             action_id=action_id,
         )
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         await scoped.execute(WRITER)
         scoped.add(_commit_event(None))
         with pytest.raises(IntegrityError, match="ck_event_action_id_by_kind"):
             await scoped.flush()
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         await scoped.execute(WRITER)
         scoped.add(_commit_event(uuid4()))
         await scoped.flush()
@@ -128,13 +128,13 @@ async def test_commit_without_action_impossible(scopes: tuple[Scope, Scope]) -> 
 async def test_expected_version_mismatch_rolls_back(
     scopes: tuple[Scope, Scope], declared: None
 ) -> None:
-    org, principal = scopes[0]
+    org, environment, principal = scopes[0]
     aggregate = uuid4()
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         await commit(scoped, _request(principal, aggregate, 0, key="first"))
         await scoped.commit()
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         with pytest.raises(VersionConflictError) as conflict:
             await commit(scoped, _request(principal, aggregate, 0, key="stale"))
         assert conflict.value == VersionConflictError(0, 1)
@@ -160,15 +160,15 @@ async def test_expected_version_mismatch_rolls_back(
 async def test_retry_returns_stored_action(
     scopes: tuple[Scope, Scope], declared: None
 ) -> None:
-    org, principal = scopes[0]
+    org, environment, principal = scopes[0]
     aggregate = uuid4()
     request = _request(principal, aggregate, 0, key="once")
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         first = await commit(scoped, request)
         await scoped.commit()
         action_id = first.id
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         again = await commit(scoped, request)
         assert again.id == action_id
         await scoped.commit()
@@ -178,10 +178,10 @@ async def test_retry_returns_stored_action(
 async def test_commit_completes_a_reservation(
     scopes: tuple[Scope, Scope], declared: None
 ) -> None:
-    org, principal = scopes[0]
+    org, environment, principal = scopes[0]
     aggregate = uuid4()
     request = _request(principal, aggregate, 0, key="reserved")
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         scoped.add(
             IdempotencyKey(
                 org_id=org,
@@ -192,13 +192,13 @@ async def test_commit_completes_a_reservation(
         )
         await scoped.commit()
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         action = await commit(scoped, request)
         await scoped.commit()
         reservation = await scoped.get(IdempotencyKey, (org, OPERATION, "reserved"))
         assert reservation is not None and reservation.action_id == action.id
 
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         assert (await commit(scoped, request)).id == action.id
         await scoped.commit()
         assert await scoped.scalar(_event_count(aggregate)) == 1
@@ -207,9 +207,9 @@ async def test_commit_completes_a_reservation(
 async def test_append_writes_a_journal_event_without_action(
     scopes: tuple[Scope, Scope],
 ) -> None:
-    (org, principal), (other_org, other_principal) = scopes
+    (org, environment, principal), (other_org, other_env, other_principal) = scopes
     aggregate = uuid4()
-    async with session(org, principal) as scoped:
+    async with session(org, environment, principal) as scoped:
         event = await append(
             scoped,
             Append(
@@ -227,5 +227,5 @@ async def test_append_writes_a_journal_event_without_action(
         assert event.aggregate_version == 0
         assert await scoped.scalar(_event_count(aggregate)) == 1
 
-    async with session(other_org, other_principal) as scoped:
+    async with session(other_org, other_env, other_principal) as scoped:
         assert await scoped.scalar(_event_count(aggregate)) == 0

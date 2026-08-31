@@ -26,13 +26,11 @@ from app.kernel.ports.context_contributor import (
 from app.kernel.ports.model_runner import Binding, Completion
 from app.kernel.store.models import Skill, SkillVersion
 from app.kernel.store.seed import seed
+from app.kernel.store.service import Scope
 
 # No test in this suite may reach a provider; the fake below goes through
 # `FunctionModel`, which this flag does not gate.
 models.ALLOW_MODEL_REQUESTS = False
-
-# An org and the principal acting in it: what every scoped session is opened with.
-Scope = tuple[UUID, UUID]
 
 START = datetime(2026, 1, 1, tzinfo=UTC)
 # The body of the skill version `dev_skill_version` writes: what a test that
@@ -41,11 +39,11 @@ SKILL_BODY = "Answer from the notes, and say when the notes are silent."
 
 
 async def two_principals(url: str) -> tuple[Scope, Scope]:
-    """Seed two orgs and hand back their system principals, one scope each."""
+    """Seed two orgs and hand back their prod planes, one system scope each."""
     first, second = await seed()
     return (
-        (first.org_id, first.system_principal_id),
-        (second.org_id, second.system_principal_id),
+        (first.org_id, first.prod_environment_id, first.system_principal_id),
+        (second.org_id, second.prod_environment_id, second.system_principal_id),
     )
 
 

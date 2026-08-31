@@ -69,7 +69,9 @@ async def test_events_stream_and_replay(serve_url: str, org: SeededOrg) -> None:
 
         # The second event lands while nobody is reading, so the reconnect is the
         # only thing that can deliver it.
-        async with session(org.org_id, org.system_principal_id) as scoped:
+        async with session(
+            org.org_id, org.prod_environment_id, org.system_principal_id
+        ) as scoped:
             assert await cancel(scoped, run_id)
             await scoped.commit()
 

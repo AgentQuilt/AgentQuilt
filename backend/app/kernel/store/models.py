@@ -17,8 +17,10 @@ from uuid import UUID
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
+    ForeignKeyConstraint,
     Integer,
     MetaData,
+    PrimaryKeyConstraint,
     TIMESTAMP,
     Text,
     UniqueConstraint,
@@ -41,11 +43,85 @@ def created_at_column() -> Mapped[datetime]:
     return mapped_column(TIMESTAMP(timezone=True), server_default=NOW)
 
 
+# The plane a row belongs to, taken from the session's GUC by the database
+# itself: no writer plumbs it, and an insert from a session that never set the
+# GUC fails on the cast, which is what fails writes closed the way RLS fails
+# reads. Model files import these three, never re-declare them.
+PLANE = text("current_setting('app.environment_id')::uuid")
+
+
+def environment_id_column() -> Mapped[UUID]:
+    """The plane key every env-scoped table carries."""
+    return mapped_column(server_default=PLANE)
+
+
+def environment_scope(table: str) -> ForeignKeyConstraint:
+    """The pair, onto `core.environment`: a row cannot name another org's plane."""
+    return ForeignKeyConstraint(
+        ["org_id", "environment_id"],
+        ["core.environment.org_id", "core.environment.id"],
+        name=f"fk_{table}_environment",
+    )
+
+
+def scope_fk(
+    table: str, column: str, parent: str, *, deferred: bool = False
+) -> ForeignKeyConstraint:
+    """One env-scoped row's reference to another, carrying the scope with it, so
+    no row can point across planes (ADR-0028 D2)."""
+    return ForeignKeyConstraint(
+        ["org_id", "environment_id", column],
+        [
+            f"core.{parent}.org_id",
+            f"core.{parent}.environment_id",
+            f"core.{parent}.id",
+        ],
+        name=f"fk_{table}_{column.removesuffix('_id')}_scope",
+        use_alter=True,
+        deferrable=True if deferred else None,
+        initially="DEFERRED" if deferred else None,
+    )
+
+
+def scope_parent(table: str) -> UniqueConstraint:
+    """What a scope-carrying key points at; the primary key alone is not unique
+    over the triple, and Postgres requires that it is."""
+    return UniqueConstraint(
+        "org_id", "environment_id", "id", name=f"uq_{table}_org_environment_id"
+    )
+
+
 class Org(Base):
     __tablename__ = "org"
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = created_at_column()
+
+
+class Environment(Base):
+    """One plane of one org: where activity happens, and what a session pins.
+
+    The lookup table for the plane, so its own row-level security stays keyed on
+    the org alone — a session has to read it to know which plane it is on.
+    """
+
+    __tablename__ = "environment"
+    __table_args__ = (
+        CheckConstraint("kind IN ('dev', 'prod')", name="ck_environment_kind"),
+        UniqueConstraint("org_id", "key", name="uq_environment_org_key"),
+        # What every scope-carrying foreign key points at; the primary key alone
+        # does not make the pair unique, and Postgres requires that it is.
+        UniqueConstraint("org_id", "id", name="uq_environment_org_id"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    org_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.org.id", name="fk_environment_org")
+    )
+    key: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(Text)
+    protection_level: Mapped[int] = mapped_column(Integer)
     created_at: Mapped[datetime] = created_at_column()
 
 
@@ -144,6 +220,9 @@ class Run(Base):
             "prefix_profile IN ('personal', 'space', 'none')",
             name="ck_run_prefix_profile",
         ),
+        environment_scope("run"),
+        scope_parent("run"),
+        scope_fk("run", "parent_id", "run"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
@@ -151,6 +230,7 @@ class Run(Base):
         ForeignKey("core.run.id", name="fk_run_parent")
     )
     org_id: Mapped[UUID] = mapped_column(ForeignKey("core.org.id", name="fk_run_org"))
+    environment_id: Mapped[UUID] = environment_id_column()
     agent_definition_id: Mapped[UUID] = mapped_column(
         ForeignKey("core.agent_definition.id", name="fk_run_agent_definition")
     )
@@ -219,3 +299,32 @@ class SkillVersion(Base):
     stage: Mapped[str] = mapped_column(Text)
     body: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = created_at_column()
+
+
+class SkillBinding(Base):
+    """Which version of one skill one plane runs: the pointer promotion flips."""
+
+    __tablename__ = "skill_binding"
+    __table_args__ = (
+        PrimaryKeyConstraint("org_id", "environment_id", "skill_id"),
+        ForeignKeyConstraint(
+            ["org_id", "environment_id"],
+            ["core.environment.org_id", "core.environment.id"],
+            name="fk_skill_binding_environment",
+        ),
+        ForeignKeyConstraint(
+            ["skill_id", "skill_version_id"],
+            ["mod_skills.skill_version.skill_id", "mod_skills.skill_version.id"],
+            name="fk_skill_binding_skill_version",
+        ),
+        {"schema": "mod_skills"},
+    )
+
+    org_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.org.id", name="fk_skill_binding_org")
+    )
+    environment_id: Mapped[UUID] = mapped_column()
+    skill_id: Mapped[UUID] = mapped_column(
+        ForeignKey("mod_skills.skill.id", name="fk_skill_binding_skill")
+    )
+    skill_version_id: Mapped[str] = mapped_column(Text)
