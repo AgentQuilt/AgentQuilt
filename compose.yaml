@@ -2,11 +2,11 @@ name: agentquilt
 
 x-app: &app
   image: agentquilt:dev
-  build:
-    context: .
-    dockerfile: Dockerfile
   environment:
     DATABASE_URL: postgresql+psycopg://agentquilt:agentquilt@db:5432/agentquilt
+    # The seeded tier binding is an OpenRouter model; without this the `work`
+    # role reaches the provider with no key and every step fails there.
+    OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
   depends_on:
     db:
       condition: service_healthy
@@ -30,7 +30,14 @@ services:
 
   serve:
     <<: *app
+    # One image, four roles (ADR-0011), so one service builds it and the rest
+    # name it: four builds of the same tag race each other on export.
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: ["serve"]
+    ports:
+      - "8000:8000"
 
   work:
     <<: *app

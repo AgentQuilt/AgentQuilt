@@ -6,10 +6,11 @@ with the token `seed` printed, and the `work` role runs in this process as
 `work_once` with the model scripted through `FunctionModel`. What a module proves
 at its own seam is not restated here — it is proven again through the interface.
 
-Three things have no route in Phase 1 and are named where they are used: a run is
-cancelled through `runs.cancel`, a parked approval's id is read from the store,
-and a run binds its skill version through `runs.create`, the call `POST /threads`
-makes with no version of its own.
+Two things have no route in Phase 1 and are named where they are used: a run is
+cancelled through `runs.cancel`, and a run binds its skill version through
+`runs.create`, the call `POST /threads` makes with no version of its own. A parked
+approval has no route either, but it has a journal event, so its id is read off
+the run's stream the way a person reads it.
 """
 
 from __future__ import annotations
@@ -42,7 +43,7 @@ from app.kernel.model.adapter import PydanticAIModelRunner
 from app.kernel.model.models import UsageRecord
 from app.kernel.runs.models import Checkpoint, StepQueue
 from app.kernel.runs.service import cancel, create
-from app.kernel.runs.work import PLANNED, work_once
+from app.kernel.runs.work import PARKED, PLANNED, work_once
 from app.kernel.store.models import AgentDefinition, Principal, Run, SkillVersion
 from app.kernel.store.seed import SeededOrg, seed
 from app.kernel.store.service import session
@@ -200,8 +201,8 @@ async def _version(space: Deployment) -> str:
 async def _park(space: Deployment, run_id: UUID, args: dict[str, str]) -> Approval:
     """Work one step that asks first, and read the approval it parked on.
 
-    The read is direct: Phase 1 has no route that lists a parked approval, so the
-    id a person answers with has to come from somewhere else.
+    Phase 1 has no route that lists a parked approval, so the id a person answers
+    with comes off the run's stream; clause 5 is where that reading is asserted.
     """
     assert await _work(space, _proposes(ACTIVATE, args)) == "waiting_approval"
     async with session(*space.scope) as scoped:
@@ -351,6 +352,12 @@ async def test_asks_first_opens_approval(
         1,
         CALL,
     )
+    # The id a person answers with is the one the stream carries: the third
+    # frame is the park, after the run's creation and the step's plan.
+    parked = _payload((await sse_frames(person, f"/runs/{run_id}/events", count=3))[-1])
+    assert parked["event"] == PARKED
+    assert parked["approval_id"] == str(approval.id)
+    assert parked["operation_name"] == ACTIVATE
     async with session(*space.scope) as scoped:
         run = await scoped.get_one(Run, run_id)
         # No checkpoint and no queue row: the same step is worked again when the

@@ -1,7 +1,8 @@
 # backend
 
 - `app/main.py` — the `agentquilt serve | work | tick | seed` entrypoint (one image, four roles); it builds the FastAPI app from the modules' routers, and `serve` runs it under uvicorn.
-- `app/serve.py` — the serve role's two dependencies: a bearer token resolved to its principal, and the org-scoped session every route body takes.
+- `app/serve.py` — the serve role's two dependencies (a bearer token resolved to its principal, and the org-scoped session every route body takes) and the one unauthenticated route, `GET /`, which serves `app/harness.html`.
+- `app/harness.html` — the QA harness page: one self-contained file, no build step and no assets, where a person pastes a token, opens a thread, steers it, watches its stream and answers an approval by hand.
 - `app/kernel/` — the kernel modules and `ports/`; `KERNEL.md` maps them, `FROZEN.md` states the change protocol.
 - `app/kernel/store/` — the scoped session, the five mapped spine tables and `seed()`; `MODULE.md` states the interface.
 - `app/kernel/identity/` — `resolve()`, `effective_grants()`, `args_hash()` and the two approval functions, over the mapped `grant` and `approval` tables; `MODULE.md` states the interface.

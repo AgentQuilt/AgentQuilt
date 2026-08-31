@@ -47,6 +47,9 @@ Scope = tuple[UUID, UUID]
 LEASE = timedelta(minutes=5)
 # The journal event that carries the model's plan, before any of it runs.
 PLANNED = "step.planned"
+# The journal event that names the approval a step stopped on, so the person
+# watching the stream reads the id they have to answer with.
+PARKED = "step.parked"
 # A run whose worker died is `running` with a stale lease, and claimable again.
 _CLAIMABLE = ("queued", "running")
 # Dispatch's own denial reason for a lost version race; the notice it earns is a
@@ -198,12 +201,20 @@ async def work_once(
 
 
 @dataclass(frozen=True, slots=True)
+class _Parked:
+    """The call that stopped the step, and the approval a person answers it on."""
+
+    approval_id: UUID
+    operation_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class _Step:
     """What the step produced, for the checkpoint and the run's next state."""
 
     text: str
     results: list[Json]
-    parked: bool
+    parked: _Parked | None
     mailbox_seq: int
 
 
@@ -211,9 +222,10 @@ async def _settle(
     session: AsyncSession, run: Run, step_no: int, outcome: _Step
 ) -> str:
     """How the step ends: parked, answered, or handed on to the next step."""
-    if outcome.parked:
+    if outcome.parked is not None:
         # No checkpoint: the same step number is re-queued by whoever answers the
         # approval, and it must drain the same mailbox and replay the same calls.
+        await _journal_parked(session, run.id, step_no, outcome.parked)
         settled = await _state(session, run, "waiting_approval")
         await _leave(session, run.id, step_no)
         return settled
@@ -284,7 +296,7 @@ async def _leave(session: AsyncSession, run_id: UUID, step_no: int) -> None:
 
 async def _dispatch_all(
     context: CallContext, run_id: UUID, calls: tuple[ProposedCall, ...]
-) -> tuple[list[Json], bool]:
+) -> tuple[list[Json], _Parked | None]:
     """Dispatch the plan in order, stopping at the first call that parks."""
     results: list[Json] = []
     for proposed in calls:
@@ -302,9 +314,9 @@ async def _dispatch_all(
         if isinstance(outcome, WaitingApproval):
             # The rest of the plan is not abandoned: it is dispatched again when
             # this step is re-queued, and its committed calls replay.
-            return results, True
+            return results, _Parked(outcome.approval_id, proposed.name)
         results.append(await _result(context.session, run_id, proposed, outcome))
-    return results, False
+    return results, None
 
 
 async def _result(
@@ -399,6 +411,33 @@ async def _journal(
                     }
                     for call in completion.calls
                 ],
+            },
+            run_id=run_id,
+            step_no=step_no,
+        ),
+    )
+
+
+async def _journal_parked(
+    session: AsyncSession, run_id: UUID, step_no: int, parked: _Parked
+) -> None:
+    """The approval the step stopped on, in the run's own stream.
+
+    The approval row is dispatch's and carries no route in Phase 1, so this is
+    where its id becomes readable: same transaction as the row, so a stream can
+    never show a park the ledger does not carry.
+    """
+    await append(
+        session,
+        Append(
+            kind="run_journal",
+            aggregate_kind=AGGREGATE,
+            aggregate_id=run_id,
+            principal_id=UUID(session.info["principal"]),
+            payload={
+                "event": PARKED,
+                "approval_id": str(parked.approval_id),
+                "operation_name": parked.operation_name,
             },
             run_id=run_id,
             step_no=step_no,

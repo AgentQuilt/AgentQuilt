@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgentQuilt harness</title>
+    <style>
+      body {
+        font: 16px/1.5 system-ui, sans-serif;
+        margin: 2rem auto;
+        max-width: 44rem;
+        padding: 0 1rem;
+      }
+      label { display: block; font-weight: 600; margin-top: 1.25rem; }
+      input, textarea { font: inherit; margin-top: 0.25rem; width: 100%; }
+      textarea { height: 5rem; }
+      button { font: inherit; margin: 0.5rem 0.5rem 0 0; padding: 0.3rem 0.9rem; }
+      ol { font-family: ui-monospace, monospace; font-size: 0.85rem; padding-left: 2rem; }
+      li { overflow-wrap: anywhere; }
+      #status { font-family: ui-monospace, monospace; font-size: 0.85rem; margin-top: 2rem; }
+    </style>
+  </head>
+  <body>
+    <h1>AgentQuilt harness</h1>
+
+    <label for="token">Token</label>
+    <input id="token" type="password" autocomplete="off" />
+
+    <label for="thread">Thread</label>
+    <input id="thread" autocomplete="off" />
+    <button id="open" type="button">Open thread</button>
+
+    <label for="message">Message</label>
+    <textarea id="message"></textarea>
+    <button id="send" type="button">Send</button>
+
+    <label for="events">Events</label>
+    <ol id="events"></ol>
+
+    <label for="approval">Approval id</label>
+    <input id="approval" autocomplete="off" />
+    <button id="approve" type="button">Approve</button>
+    <button id="reject" type="button">Reject</button>
+
+    <label for="action">Action id</label>
+    <input id="action" autocomplete="off" />
+    <button id="undo" type="button">Undo</button>
+
+    <p id="status"></p>
+
+    <script>
+      // A QA harness, not the product UI: one page, no build step, no assets.
+      // The stream is read with fetch rather than EventSource because every call
+      // this page makes carries the pasted bearer token, and EventSource cannot
+      // send a header; the Last-Event-ID resume is the same either way.
+      const field = (id) => document.getElementById(id);
+      const line = field("status");
+      const RETRY_MS = 1000;
+
+      const authorized = (extra) => ({
+        Authorization: `Bearer ${field("token").value.trim()}`,
+        ...extra,
+      });
+
+      async function call(method, path, body) {
+        let response;
+        try {
+          response = await fetch(path, {
+            method,
+            headers: authorized(body ? { "Content-Type": "application/json" } : {}),
+            body: body ? JSON.stringify(body) : null,
+          });
+        } catch (reason) {
+          line.textContent = `${method} ${path} ${reason}`;
+          return null;
+        }
+        const text = await response.text();
+        line.textContent = `${method} ${path} ${response.status} ${text}`;
+        return response.ok && text ? JSON.parse(text) : null;
+      }
+
+      function frameOf(block) {
+        const frame = {};
+        for (const row of block.split("\n")) {
+          const at = row.indexOf(": ");
+          if (row.startsWith(":") || at < 0) continue;
+          frame[row.slice(0, at)] = row.slice(at + 2);
+        }
+        return frame;
+      }
+
+      function show(frame) {
+        const entry = document.createElement("li");
+        entry.textContent = `${frame.event} ${frame.data}`;
+        field("events").append(entry);
+        entry.scrollIntoView({ block: "nearest" });
+        // The parked step is where an approval id becomes readable, so the field
+        // a person answers with fills itself from the stream.
+        const payload = JSON.parse(frame.data).payload;
+        if (payload && payload.approval_id) field("approval").value = payload.approval_id;
+      }
+
+      let watching = 0;
+
+      async function watch(runId) {
+        const mine = ++watching;
+        const path = `/runs/${runId}/events`;
+        field("events").replaceChildren();
+        let cursor = 0;
+        while (mine === watching) {
+          try {
+            const response = await fetch(path, {
+              headers: authorized({ "Last-Event-ID": String(cursor) }),
+            });
+            line.textContent = `GET ${path} ${response.status}`;
+            if (!response.ok) return;
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+            while (mine === watching) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              buffer += decoder.decode(value, { stream: true });
+              let cut;
+              while ((cut = buffer.indexOf("\n\n")) >= 0) {
+                const block = buffer.slice(0, cut);
+                buffer = buffer.slice(cut + 2);
+                const frame = frameOf(block);
+                if (!frame.data) continue;
+                cursor = Number(frame.id);
+                show(frame);
+              }
+            }
+            await reader.cancel();
+          } catch (reason) {
+            line.textContent = `GET ${path} ${reason}`;
+          }
+          await new Promise((wake) => setTimeout(wake, RETRY_MS));
+        }
+      }
+
+      field("open").onclick = async () => {
+        const opened = await call("POST", "/threads");
+        if (!opened) return;
+        field("thread").value = opened.run_id;
+        watch(opened.run_id);
+      };
+      field("thread").onchange = () => watch(field("thread").value.trim());
+      field("send").onclick = () =>
+        call("POST", `/runs/${field("thread").value.trim()}/messages`, {
+          text: field("message").value,
+        });
+      const decide = (decision) => () =>
+        call("POST", `/approvals/${field("approval").value.trim()}/decide`, {
+          decision,
+        });
+      field("approve").onclick = decide("approve");
+      field("reject").onclick = decide("reject");
+      field("undo").onclick = () =>
+        call("POST", `/actions/${field("action").value.trim()}/undo`);
+    </script>
+  </body>
+</html>

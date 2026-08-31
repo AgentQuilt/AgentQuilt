@@ -20,6 +20,7 @@ from app.kernel.runs.work import work_once
 from app.kernel.store.seed import seed
 from app.kernel.store.service import tenants
 from app.modules.governance.router import router as governance_router
+from app.serve import router as harness_router
 
 ROLES = ("serve", "work", "tick", "seed")
 # ADR-0019: one-second polling is fine at this scale, and LISTEN/NOTIFY waits
@@ -27,11 +28,13 @@ ROLES = ("serve", "work", "tick", "seed")
 POLL_SECONDS = 1.0
 
 # Importing the modules package is what declares their operations, for the
-# catalog and for dispatch alike; the two routers are the whole HTTP surface.
+# catalog and for dispatch alike; the two routers plus the harness page are the
+# whole HTTP surface.
 importlib.import_module("app.modules")
 app = FastAPI()
 app.include_router(runs_router)
 app.include_router(governance_router)
+app.include_router(harness_router)
 
 
 async def work() -> None:

@@ -2,14 +2,18 @@
 
 Every router takes these two dependencies and nothing else authenticates, so the
 route bodies never see a token and cannot open a session that is not the caller's.
+The one route here is the QA harness page, which carries no data of its own and is
+the only thing this app serves without a token.
 """
 
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,3 +45,16 @@ async def scoped(who: Who) -> AsyncGenerator[AsyncSession]:
 
 
 Scoped = Annotated[AsyncSession, Depends(scoped)]
+
+
+router = APIRouter()
+# One self-contained file next to this one: no build step and no second asset to
+# serve, so the page ships wherever the package does.
+HARNESS = Path(__file__).resolve().parent / "harness.html"
+
+
+@router.get("/", response_class=FileResponse, include_in_schema=False)
+async def harness() -> FileResponse:
+    """The QA harness page. Static, so it needs no token; every call it makes
+    from the browser carries the one the person pastes into it."""
+    return FileResponse(HARNESS, media_type="text/html")
