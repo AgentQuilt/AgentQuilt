@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    # A fork's head repository never selects the runner variable, and an unset
+    # variable falls back to the hosted runner. Both land on ubuntu-latest.
+    runs-on: ${{ (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) && (vars.CI_RUNS_ON || 'ubuntu-latest') || 'ubuntu-latest' }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          enable-cache: false
+
+      - name: Install dependencies
+        run: |
+          set -o pipefail
+          uv sync --frozen
+
+      - name: ruff
+        run: |
+          set -o pipefail
+          uv run ruff check .
+
+      - name: pyright
+        run: |
+          set -o pipefail
+          uv run pyright --stats | tee "$RUNNER_TEMP/pyright.log"
+          grep -Eq "Total files checked: [1-9]" "$RUNNER_TEMP/pyright.log" \
+            || { echo "pyright checked no files: the include is wrong, not the code"; exit 1; }
+
+      - name: pytest
+        run: |
+          set -o pipefail
+          uv run pytest -rs -v | tee "$RUNNER_TEMP/pytest.log"
+          grep -Eq "::test_real_provider_smoke .*SKIPPED" "$RUNNER_TEMP/pytest.log" \
+            && grep -Eq "::test_openrouter_answers .*SKIPPED" "$RUNNER_TEMP/pytest.log" \
+            || { echo "the two key-gated tests did not report SKIPPED"; exit 1; }
