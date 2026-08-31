@@ -120,7 +120,12 @@
             while (mine === watching) {
               const { value, done } = await reader.read();
               if (done) break;
-              buffer += decoder.decode(value, { stream: true });
+              // FastAPI's SSE frames end \r\n\r\n; normalize so the cut below
+              // finds them (a CRLF split across chunks heals on the next pass).
+              buffer = (buffer + decoder.decode(value, { stream: true })).replace(
+                /\r\n/g,
+                "\n",
+              );
               let cut;
               while ((cut = buffer.indexOf("\n\n")) >= 0) {
                 const block = buffer.slice(0, cut);
