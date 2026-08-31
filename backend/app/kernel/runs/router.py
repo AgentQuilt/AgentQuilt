@@ -79,7 +79,8 @@ async def stream_events(
 
     The cursor is the ledger id the client sends back as `Last-Event-ID`, so a
     reconnect replays from there and repeats nothing. A run this org cannot see
-    streams empty rather than 404: row-level security hides it, and so does this.
+    404s at the door: the Plane dependency cannot locate it; within the stream,
+    two-key row-level security hides whatever the plane cannot see.
     """
     cursor = last_event_id
     while True:

@@ -68,7 +68,9 @@ async def tenants() -> list[Scope]:
     migration 0001 grants its policies to `agentquilt_app` alone under FORCE RLS,
     so this reads everything only as a superuser; the role a deployment connects
     with is a migration this wave did not open. Trigger: the first deployment
-    that is not a local container.
+    that is not a local container. The class, one connecting-role read each:
+    this, identity's `resolve`, and — since the rail — its `locate` and
+    `prod_plane`.
     """
     async with engine().connect() as connection:
         rows = await connection.execute(

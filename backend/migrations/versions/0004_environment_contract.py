@@ -166,6 +166,21 @@ def downgrade() -> None:
     op.drop_constraint(
         IDEMPOTENCY_PK, "idempotency_key", type_="primary", schema="core"
     )
+    # Planes made the same (org, operation, key) triple legal once per plane; the
+    # environment-blind key cannot hold both. A downgrade collapses planes, so it
+    # keeps the prod row -- the same philosophy as 0003's backfill, where the
+    # pre-plane world was prod -- and drops the dev twin.
+    op.execute(
+        "DELETE FROM core.idempotency_key ik"
+        " USING core.environment e"
+        " WHERE ik.org_id = e.org_id AND ik.environment_id = e.id"
+        "   AND e.kind <> 'prod'"
+        "   AND EXISTS (SELECT 1 FROM core.idempotency_key k2"
+        "     WHERE k2.org_id = ik.org_id"
+        "       AND k2.operation_name = ik.operation_name"
+        "       AND k2.idempotency_key = ik.idempotency_key"
+        "       AND k2.ctid <> ik.ctid)"
+    )
     op.create_primary_key(
         IDEMPOTENCY_PK,
         "idempotency_key",
