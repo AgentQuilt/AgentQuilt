@@ -49,7 +49,7 @@ async def test_undo_route_returns_the_refusal(
     async with _client(serve_url, granted) as client:
         response = await client.post(f"/actions/{uuid4()}/undo")
     assert response.status_code == 200
-    assert response.json()["undone"] is False
+    assert response.json()["undo_run_id"] is None
 
 
 async def test_ungranted_person_is_denied(

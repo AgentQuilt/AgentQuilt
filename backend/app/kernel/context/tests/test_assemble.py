@@ -25,6 +25,7 @@ from app.kernel.identity.models import Grant
 from app.kernel.model.models import TierBinding
 from app.kernel.ports.context_contributor import Layer
 from app.kernel.store.models import AgentDefinition, Principal, Run, Skill, SkillVersion
+from app.kernel.store.seed import UNDOABLE_OPERATION
 from app.kernel.store.service import session
 from tests.kit import StaticContributor, two_principals
 
@@ -167,7 +168,10 @@ async def test_manifest_persisted_per_call(setup: Setup) -> None:
     assert after == before + 1
     assert manifest.prefix_key == assembled.prefix_key
     assert manifest.token_cost == assembled.token_cost
-    assert manifest.effective_scope["grants"] == {"note.write_note": "may_use"}
+    assert manifest.effective_scope["grants"] == {
+        "note.write_note": "may_use",
+        UNDOABLE_OPERATION: "asks_first",
+    }
 
 
 async def test_tool_block_carries_only_the_ceiling(setup: Setup) -> None:

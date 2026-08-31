@@ -104,7 +104,7 @@ class UndoAction(BaseModel):
 
 @registry.operation(UNDO, Declares(mode="write", reversal="irreversible"))
 async def undo_action(ctx: CallContext, args: UndoAction) -> Json:
-    """Undo one action by running its compensator in a new run."""
+    """Start a run that undoes one action by calling its compensator."""
     # Undoing is a person's call on a finished action, so it comes from outside
     # any run, the way deciding an approval does.
     if ctx.run_id is not None:
@@ -121,14 +121,14 @@ async def undo_action(ctx: CallContext, args: UndoAction) -> Json:
         )
     ).first()
     if target is None:
-        return {"undone": False, "reason": f"no action {args.action_id}"}
+        return {"undo_run_id": None, "reason": f"no action {args.action_id}"}
     name, compensator, compensator_args = target
     if compensator is None:
         # The registry's own rule: only a reversible operation names a
         # compensator (`declare/registry.py`), so a missing one is the
         # declaration saying this cannot be taken back.
         return {
-            "undone": False,
+            "undo_run_id": None,
             "reason": f"{name} is irreversible: it declares no compensator",
         }
 
@@ -153,4 +153,6 @@ async def undo_action(ctx: CallContext, args: UndoAction) -> Json:
             )
         },
     )
-    return {"undone": True, "run_id": str(run.id), "compensator": compensator}
+    # The result names the run that was started, not a reversal that happened:
+    # the compensator is a step the worker still has to make.
+    return {"undo_run_id": str(run.id), "compensator": compensator}

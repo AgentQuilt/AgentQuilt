@@ -52,7 +52,8 @@ class SeededOrg:
 async def seed() -> list[SeededOrg]:
     seeded: list[SeededOrg] = []
     for name in ORG_NAMES:
-        org_id, system_principal_id, user_id = uuid4(), uuid4(), uuid4()
+        org_id, system_principal_id = uuid4(), uuid4()
+        user_principal_id, user_id = uuid4(), uuid4()
         token = secrets.token_urlsafe(32)
         async with session(org_id, system_principal_id) as scoped:
             # No relationships are mapped, so the unit of work has no dependency
@@ -65,7 +66,12 @@ async def seed() -> list[SeededOrg]:
                 Principal(id=system_principal_id, org_id=org_id, class_="system")
             )
             scoped.add(
-                Principal(id=uuid4(), org_id=org_id, class_="user", user_id=user_id)
+                Principal(
+                    id=user_principal_id,
+                    org_id=org_id,
+                    class_="user",
+                    user_id=user_id,
+                )
             )
             scoped.add(
                 UserToken(
@@ -88,17 +94,22 @@ async def seed() -> list[SeededOrg]:
                 )
             )
             # After the principals: mapper name orders this batch's inserts, and
-            # the grant points at one of them.
+            # the grants point at two of them.
             await scoped.flush()
-            scoped.add(
-                Grant(
-                    id=uuid4(),
-                    org_id=org_id,
-                    principal_id=system_principal_id,
-                    operation_name=UNDOABLE_OPERATION,
-                    level="asks_first",
+            # Both principals, because `runs.create` fixes a run's ceiling from
+            # the grants of whoever creates it: the agent proposes the
+            # operation, and a run the person starts (the web thread, or the one
+            # undo starts) would otherwise carry a ceiling without it.
+            for principal_id in (system_principal_id, user_principal_id):
+                scoped.add(
+                    Grant(
+                        id=uuid4(),
+                        org_id=org_id,
+                        principal_id=principal_id,
+                        operation_name=UNDOABLE_OPERATION,
+                        level="asks_first",
+                    )
                 )
-            )
             await scoped.commit()
         seeded.append(SeededOrg(org_id, system_principal_id, user_id, token))
     await _bind_executor_tier(seeded[0])

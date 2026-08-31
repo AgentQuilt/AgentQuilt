@@ -117,8 +117,8 @@ async def test_action_written_and_undoable(person: Scope) -> None:
         )
         await scoped.commit()
 
-    assert undone.result["undone"] is True
-    compensating = UUID(str(undone.result["run_id"]))
+    assert undone.result["compensator"] == ACTIVATE
+    compensating = UUID(str(undone.result["undo_run_id"]))
     async with session(org_id, principal_id) as scoped:
         run = await scoped.get_one(Run, compensating)
         queued = await scoped.scalars(
@@ -165,7 +165,7 @@ async def test_irreversible_undo_refused_with_reason(person: Scope) -> None:
         runs_after = len((await scoped.scalars(select(Run.id))).all())
         await scoped.commit()
 
-    assert refused.result["undone"] is False
+    assert refused.result["undo_run_id"] is None
     assert (
         refused.result["reason"]
         == f"{DECIDE} is irreversible: it declares no compensator"

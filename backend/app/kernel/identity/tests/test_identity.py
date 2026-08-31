@@ -127,6 +127,14 @@ async def test_effective_grants_maps_rows(org: SeededOrg) -> None:
             "note.write_note": "asks_first",
             "note.x": "never",
         }
+        person = (
+            await scoped.scalars(select(Principal.id).where(Principal.class_ == "user"))
+        ).one()
+        # The seeded person holds it too: a run they start takes its ceiling from
+        # their grants, so the agent principal's copy alone would not reach it.
+        assert await effective_grants(scoped, person) == {
+            UNDOABLE_OPERATION: "asks_first"
+        }
         assert await effective_grants(scoped, uuid4()) == {}
 
 

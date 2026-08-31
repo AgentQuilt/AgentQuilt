@@ -40,6 +40,13 @@ _WRITE = text(
 )
 _DELETE = text("DELETE FROM mod_test.note WHERE id = :id")
 _SELECT = text("SELECT body FROM mod_test.note ORDER BY body")
+# A replace, not an insert: `effective_grants` reads one level per operation, and
+# `seed` already grants its undoable operation, so a second row for the same pair
+# would leave which level applies to row order.
+_UNGRANT = text(
+    'DELETE FROM core."grant" WHERE principal_id = :principal'
+    " AND operation_name = :name"
+)
 _GRANT = text(
     'INSERT INTO core."grant" (id, org_id, principal_id, operation_name, level)'
     " VALUES (:id, :org, :principal, :name, :level)"
@@ -118,7 +125,11 @@ def notes_registry() -> Registry:
 async def grant(
     session: AsyncSession, principal_id: UUID, operation_name: str, level: str
 ) -> None:
-    """One grant row, read back by `identity.effective_grants`."""
+    """This principal's one grant row for the operation, read back by
+    `identity.effective_grants`."""
+    await session.execute(
+        _UNGRANT, {"principal": principal_id, "name": operation_name}
+    )
     await session.execute(
         _GRANT,
         {
