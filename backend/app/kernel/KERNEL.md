@@ -6,10 +6,11 @@ them costs. Nothing outside `kernel/` may be imported from inside it.
 
 ## store
 
-`session(org_id, principal_id)` — the only way into the database, an async context
-manager whose transaction sets the tenant scope; `engine()`; `tenants()` — every org
-and the system principal a background role acts as in it; `seed()` — two demo orgs
-with a user, a token, an agent definition and the executor tier binding.
+`session(org_id, environment_id, principal_id)` — the only way into the database, an
+async context manager whose transaction sets the (org, environment, principal) scope;
+`engine()`; `tenants()` — every such triple a background role acts as; `seed()` — two
+demo orgs, each with its dev and prod planes, a user, a token, an agent definition and
+the executor tier binding.
 
 ## identity
 

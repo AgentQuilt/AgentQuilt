@@ -1,11 +1,11 @@
 # backend
 
 - `app/main.py` — the `agentquilt serve | work | tick | seed` entrypoint (one image, four roles); it builds the FastAPI app from the modules' routers, and `serve` runs it under uvicorn.
-- `app/serve.py` — the serve role's two dependencies (a bearer token resolved to its principal, and the org-scoped session every route body takes) and the one unauthenticated route, `GET /`, which serves `app/harness.html`.
+- `app/serve.py` — the serve role's dependencies (a bearer token resolved to its principal, the plane located from the addressed id — or the org's prod plane for creation — and the (org, environment, principal)-scoped session every route body takes) and the one unauthenticated route, `GET /`, which serves `app/harness.html`.
 - `app/harness.html` — the QA harness page: one self-contained file, no build step and no assets, where a person pastes a token, opens a thread, steers it, watches its stream and answers an approval by hand.
 - `app/kernel/` — the kernel modules and `ports/`; `KERNEL.md` maps them, `FROZEN.md` states the change protocol.
-- `app/kernel/store/` — the scoped session, the five mapped spine tables and `seed()`; `MODULE.md` states the interface.
-- `app/kernel/identity/` — `resolve()`, `effective_grants()`, `args_hash()` and the two approval functions, over the mapped `grant` and `approval` tables; `MODULE.md` states the interface.
+- `app/kernel/store/` — the session scoped to the (org, environment, principal) triple, the seven mapped spine tables and `seed()`; `MODULE.md` states the interface.
+- `app/kernel/identity/` — `resolve()`, `locate()` and `prod_plane()`, `effective_grants()`, `args_hash()` and the two approval functions, over the mapped `grant` and `approval` tables; `MODULE.md` states the interface.
 - `app/kernel/declare/` — the operation registry, `dispatch()` and the ledger: the five mapped ledger tables and `commit()` / `append()`; `MODULE.md` states the interface.
 - `app/kernel/context/` — `assemble()`: prefix layers, envelope, `prefix_key` and the per-turn manifest, over the registered contributors; `MODULE.md` states the interface.
 - `app/kernel/model/` — `run()`: budget check, the provider call through the `ModelRunner` port, usage and telemetry; `MODULE.md` states the interface.
