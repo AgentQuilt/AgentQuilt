@@ -9,6 +9,7 @@ import os
 import socket
 
 import uvicorn
+from alembic import command
 from fastapi import FastAPI
 
 from app.kernel.declare.catalog import PAGE, render
@@ -17,6 +18,7 @@ from app.kernel.model.adapter import PydanticAIModelRunner
 from app.kernel.runs.router import router as runs_router
 from app.kernel.runs.tick import tick_once
 from app.kernel.runs.work import work_once
+from app.kernel.store.migrate import alembic_config
 from app.kernel.store.seed import seed
 from app.kernel.store.service import tenants
 from app.modules.governance.router import router as governance_router
@@ -68,10 +70,14 @@ async def tick() -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="agentquilt")
     subparsers = parser.add_subparsers(dest="role", required=True)
-    # `catalog` is a one-shot that regenerates the operations page, not a role.
-    for command in (*ROLES, "catalog"):
-        subparsers.add_parser(command)
+    # `migrate` and `catalog` are one-shots, not roles: the chain to head, and
+    # the operations page regenerated.
+    for name in (*ROLES, "migrate", "catalog"):
+        subparsers.add_parser(name)
     args = parser.parse_args()
+    if args.role == "migrate":
+        command.upgrade(alembic_config(), "head")
+        return 0
     if args.role == "catalog":
         PAGE.write_text(render(registry))
         print(f"agentquilt: wrote {PAGE}")

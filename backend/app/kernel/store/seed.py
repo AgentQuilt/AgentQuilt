@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.dialects.postgresql import insert
 
+from app.kernel.declare.registry import registry
 from app.kernel.identity.models import Grant
 from app.kernel.model.models import TierBinding
 from app.kernel.store.models import AgentDefinition, Org, Principal, User, UserToken
@@ -112,17 +113,20 @@ async def seed() -> list[SeededOrg]:
                 )
             await scoped.commit()
         seeded.append(SeededOrg(org_id, system_principal_id, user_id, token))
-    await _bind_executor_tier(seeded[0])
+    await _write_global_rows(seeded[0])
     return seeded
 
 
-async def _bind_executor_tier(org: SeededOrg) -> None:
-    """`core.tier_binding` is global, and a session is always org-scoped: the
-    first seeded org opens the one this row is written through."""
+async def _write_global_rows(org: SeededOrg) -> None:
+    """The tier binding and the operation versions: both global, and a session is
+    always org-scoped, so the first seeded org opens the one they are written
+    through. Dispatch's approval rows carry an operation version id, so without
+    this the first action an agent proposes fails on the foreign key."""
     async with session(org.org_id, org.system_principal_id) as scoped:
         await scoped.execute(
             insert(TierBinding)
             .values(EXECUTOR_BINDING)
             .on_conflict_do_nothing(index_elements=[TierBinding.id])
         )
+        await registry.publish(scoped)
         await scoped.commit()
