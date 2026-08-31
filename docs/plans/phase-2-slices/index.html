@@ -1,0 +1,936 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 2 — the slices on the environments rail</title>
+<style>
+  /* Design tokens, verbatim from the vault design brief §4. */
+  :root {
+    --field:      #FBF8F3;
+    --card:       #FFFFFF;
+    --ink:        #221C18;
+    --seam:       #E4DCD1;
+    --thread:     #9E1D32;
+    --approved:   #2E7A57;
+    --pending:    #A8730F;
+    --alarm:      #C64242;
+
+    --ink-quiet:  color-mix(in srgb, var(--ink) 62%, transparent);
+    --ink-faint:  color-mix(in srgb, var(--ink) 40%, transparent);
+    --wash:       color-mix(in srgb, var(--thread) 6%, transparent);
+
+    --measure: 68ch;
+    --step-0: 1rem;
+    --step-1: 1.15rem;
+    --step-2: 1.45rem;
+    --step-3: 2rem;
+    --step-4: 2.7rem;
+
+    --face: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --face-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --field:    #191412;
+      --card:     #221C18;
+      --ink:      #EFE6DB;
+      --seam:     #3B322B;
+      --thread:   #E15A68;
+      --approved: #55A87E;
+      --pending:  #D2A03C;
+      --alarm:    #E8756F;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  :where(.grid, .flex) > * { min-width: 0; }
+  :where(p, li, dd, td, th, h1, h2, h3, figcaption) { overflow-wrap: anywhere; }
+  :where(img, svg) { max-width: 100%; height: auto; }
+
+  html { background: var(--field); }
+  body {
+    margin: 0;
+    background: var(--field);
+    color: var(--ink);
+    font-family: var(--face);
+    font-size: var(--step-0);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 66rem; margin: 0 auto; padding: 2.5rem 1.25rem 6rem; }
+
+  .stitch { border: 0; height: 0; border-top: 2px dashed var(--seam); margin: 3rem 0; }
+
+  .masthead { display: flex; gap: 1.1rem; align-items: flex-start; flex-wrap: wrap; }
+  .mark { width: 56px; height: 56px; flex: none; }
+  .masthead h1 { font-size: var(--step-4); line-height: 1.1; margin: 0 0 .35rem; letter-spacing: -0.015em; font-weight: 650; }
+  .kicker { font-size: .8rem; letter-spacing: .13em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 .5rem; }
+  .standfirst { font-size: var(--step-1); color: var(--ink-quiet); max-width: var(--measure); margin: .75rem 0 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: 1.1rem; }
+  .chip { font-size: .78rem; padding: .18rem .6rem; border: 1px solid var(--seam); border-radius: 999px; color: var(--ink-quiet); white-space: nowrap; }
+  .chip-pending  { border-color: var(--pending); color: var(--pending); }
+  .chip-thread   { border-color: var(--thread); color: var(--thread); }
+  .chip-approved { border-color: var(--approved); color: var(--approved); }
+
+  h2 { font-size: var(--step-3); line-height: 1.15; letter-spacing: -0.01em; margin: 0 0 .2rem; font-weight: 650; }
+  h2 .num { display: block; font-size: .78rem; letter-spacing: .13em; text-transform: uppercase; color: var(--thread); font-weight: 600; margin-bottom: .35rem; }
+  h3 { font-size: var(--step-2); margin: 2rem 0 .5rem; font-weight: 620; line-height: 1.25; }
+  h4 { font-size: var(--step-1); margin: 1.4rem 0 .35rem; font-weight: 620; }
+  p, li { max-width: var(--measure); }
+  section > p:first-of-type { margin-top: .9rem; }
+  a { color: var(--thread); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  code { font-family: var(--face-mono); font-size: .875em; background: color-mix(in srgb, var(--ink) 6%, transparent); padding: .1em .35em; border-radius: 3px; }
+  pre { margin: 0; padding: 1rem 1.2rem; overflow-x: auto; }
+  pre code { background: none; padding: 0; font-size: .84rem; line-height: 1.5; }
+
+  .card { background: var(--card); border: 1px solid var(--seam); border-radius: 4px; padding: 1.25rem 1.4rem; }
+  .grid { display: grid; gap: 1rem; }
+  @media (min-width: 46rem) { .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  .lede-rule { border-left: 3px solid var(--thread); padding-left: 1.1rem; margin: 1.5rem 0; }
+  .lede-rule p { font-size: var(--step-1); margin: 0; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--seam); border-radius: 4px; background: var(--card); }
+  table { border-collapse: collapse; width: 100%; min-width: 40rem; }
+  th, td { text-align: left; padding: .7rem .9rem; vertical-align: top; font-size: .93rem; }
+  thead th { font-size: .74rem; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; border-bottom: 2px dashed var(--seam); }
+  tbody tr + tr td { border-top: 1px solid var(--seam); }
+  td:first-child { font-weight: 600; }
+
+  .decision { background: var(--card); border: 1px solid var(--seam); border-top: 3px solid var(--thread); border-radius: 4px; padding: 1.35rem 1.4rem 1.2rem; margin: 1.5rem 0; }
+  .decision > h3 { margin-top: 0; }
+  .decision .why { color: var(--ink-quiet); font-size: .93rem; }
+  .opts { display: grid; gap: .6rem; margin: 1.1rem 0; }
+  .opt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .75rem; align-items: start; border: 1px solid var(--seam); border-radius: 4px; padding: .8rem .95rem; cursor: pointer; }
+  .opt:hover { border-color: var(--thread); }
+  .opt:has(input:checked) { border-color: var(--thread); background: var(--wash); }
+  .opt input { margin-top: .28rem; accent-color: var(--thread); width: 1rem; height: 1rem; }
+  .opt .name { font-weight: 620; display: block; }
+  .opt .note { color: var(--ink-quiet); font-size: .89rem; display: block; margin-top: .15rem; }
+  .rec { font-size: .7rem; letter-spacing: .07em; text-transform: uppercase; color: var(--thread); border: 1px solid var(--thread); border-radius: 999px; padding: .05rem .45rem; margin-left: .45rem; white-space: nowrap; vertical-align: 1px; }
+  .queue { font: inherit; font-weight: 620; font-size: .92rem; color: var(--card); background: var(--thread); border: 1px solid var(--thread); border-radius: 4px; padding: .5rem 1.1rem; cursor: pointer; }
+  .queue:hover { background: color-mix(in srgb, var(--thread) 85%, var(--ink)); }
+  .queued-note { font-size: .87rem; color: var(--approved); margin-left: .75rem; display: none; }
+  form.answered .queued-note { display: inline; }
+  .decision footer { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; margin-top: 1rem; }
+
+  .settled-mark { display: inline-block; font-size: .7rem; letter-spacing: .07em; text-transform: uppercase; font-weight: 700; color: var(--approved); border: 1px solid var(--approved); border-radius: 999px; padding: .05rem .5rem; margin-left: .5rem; vertical-align: 2px; }
+  .opt input:disabled { cursor: default; }
+  .opt:has(input:disabled) { cursor: default; }
+  .opt:has(input:disabled):hover { border-color: var(--seam); }
+  .opt:has(input:checked:disabled) { border-color: var(--approved); background: color-mix(in srgb, var(--approved) 8%, transparent); }
+  .opt:has(input:checked:disabled):hover { border-color: var(--approved); }
+  .opt:has(input:disabled:not(:checked)) { opacity: .55; }
+  .outcome { border-top: 2px dashed var(--seam); margin-top: 1rem; padding-top: .85rem; font-size: .93rem; color: var(--ink-quiet); }
+  .outcome strong { color: var(--ink); }
+
+  ul.plain { padding-left: 1.15rem; }
+  ul.plain li { margin: .35rem 0; }
+  .footnote { color: var(--ink-faint); font-size: .85rem; }
+  textarea { width: 100%; min-height: 6rem; font: inherit; color: var(--ink); background: var(--field); border: 1px solid var(--seam); border-radius: 4px; padding: .7rem .9rem; }
+  .phase { border-left: 3px solid var(--seam); padding: .2rem 0 .2rem 1.15rem; margin: 1.4rem 0; }
+  .phase.now { border-left-color: var(--thread); }
+  .phase h3 { margin: 0 0 .3rem; }
+  .phase .maps { font-size: .8rem; color: var(--ink-faint); letter-spacing: .04em; text-transform: uppercase; margin: 0 0 .4rem; }
+</style>
+</head>
+<body>
+<main class="page">
+
+<header class="masthead">
+  <svg class="mark" viewBox="0 0 64 64" role="img" aria-label="AgentQuilt Kanatitsa mark">
+    <rect x="10" y="10" width="44" height="44" fill="none" stroke="currentColor" stroke-width="3" />
+    <path d="M32 14 L50 32 L32 50 L14 32 Z M32 23 L23 32 L32 41 L41 32 Z" fill="var(--thread)" fill-rule="evenodd" />
+    <path d="M34.3 21.3 L37.5 24.5 M39.5 26.5 L42.7 29.7 M42.7 34.3 L39.5 37.5 M37.5 39.5 L34.3 42.7 M29.7 42.7 L26.5 39.5 M24.5 37.5 L21.3 34.3 M21.3 29.7 L24.5 26.5" stroke="var(--field)" stroke-width="2.2" />
+  </svg>
+  <div style="flex:1 1 22rem">
+    <p class="kicker">Plan &middot; Phase 2 &middot; 2026-08-31 &middot; plan-gate 8/10, dispatch 1 of 3 &middot; Codex plan rounds 1&ndash;11: seventeen P1s and two P2s folded, one round spent on an unlanded fold (loop defect, filed), PASS at round 11</p>
+    <h1>Phase 2 &mdash; the slices on the environments rail</h1>
+    <p class="standfirst">
+      Your direction this morning: start the main planning and go through the loop. The slice order
+      you settled yesterday stands &mdash; chat, then skills, then sub-agents, then memory &mdash;
+      and per the environments design (ADR-0028, D12) one foundations wave lays the environment rail
+      before any slice rides on it. Your lesson from yesterday is built into every wave below: each
+      one names the surface a person verifies it on, and pure back-end work is bounded to what the
+      acceptance suite proves. Two Opus scouts read the whole backend and the design handoff this
+      morning; every premise here carries the file and line they found it at.
+    </p>
+  </div>
+</header>
+
+<section>
+  <h2><span class="num">1</span>What "Phase 2 done" means</h2>
+  <p>
+    One working product a person can be shown, not a backend with a harness page. Concretely, all
+    verified in a real browser by <code>browser-qa</code> against a named build:
+  </p>
+  <ul class="plain">
+    <li><strong>Chat:</strong> sign in, see the thread list, hold a conversation on the designed
+      Personal-chat screen &mdash; steer mid-run, answer the approval card, undo from the receipt,
+      cancel, come back later and the transcript is there.</li>
+    <li><strong>Skills:</strong> author a skill version, publish it, promote it DEV &rarr; PROD as a
+      receipted, approval-gated flip on the Admin screen &mdash; and undo the promotion.</li>
+    <li><strong>Sub-agents:</strong> a delegated skill runs as a child run with its own tool set
+      (ADR-0013), nested visibly in the parent thread.</li>
+    <li><strong>Memory:</strong> agents propose, the librarian commits (ADR-0010), and a minimal
+      knowledge screen shows what the agent knows, with correct-and-undo.</li>
+    <li><strong>Environments underneath it all:</strong> every org has its two planes (dev and prod)
+      from ADR-0028; a thread opened on the dev plane cannot see prod data; every run pins its
+      environment, artifact versions and model binding at start; every promotion writes its action.</li>
+  </ul>
+  <p class="footnote">
+    Out of scope, by your decisions: channel conversations (deferred, decision log 2026-08-31),
+    shadow mode and envelope replay (post-Phase-2, ADR-0028 D8), and executor tiers beyond Tier 0
+    (parked with its own design round). File attachments and compaction are in scope, late, as waves
+    X1/X2 (decision card D4).
+  </p>
+</section>
+
+<section>
+  <h2><span class="num">2</span>Premises, each checked</h2>
+  <p>Two Opus scouts read the backend and the design handoff today; each premise cites what they found.</p>
+  <ol>
+    <li><code>factory</code> is at <code>9a62a6c</code>, clean, and the three gates are green on this
+      tree, run 2026-08-31: ruff and pyright clean, pytest 93 passed + 2 key-gated skips (session
+      logs). Two build-machine repairs were needed and are done durably: root-owned
+      <code>.venv</code> files from an earlier sudo compose session chowned back, and the build
+      user added to the <code>docker</code> group so testcontainers reaches the socket without
+      sudo.</li>
+    <li>ADR-0028 settles the environments design and its D12 opens Phase 2 with one
+      environments-foundations wave (<code>$V/docs/architecture/adr/0028:40</code>). Your standing
+      stop from that page is lifted for <em>planning</em> by this morning's direction; implementation
+      still dispatches only on your green light on this page.</li>
+    <li>The slice order is settled: chat &rarr; skills &rarr; sub-agents &rarr; memory, conversations
+      deferred (<code>$V/90-meta/decision-log.md:11</code>).</li>
+    <li>There are 23 operational tables, created in one migration (<code>0001_create_spine.py:30-54</code>),
+      with single-key RLS on <code>org_id</code> (<code>0001:555-564</code>). ADR-0008 still says "RLS
+      keys on <code>org_id</code> and nothing else" (<code>adr/0008:14</code>); ADR-0028 adds the
+      environment key, so ADR-0008 is amended in the same wave that changes the policies.</li>
+    <li><code>run.stage</code> is a free-text column with the ADR-0012 predicate enforced in code
+      (<code>0001:438</code>; <code>runs/service.py:59-63</code>). It is exactly the field ADR-0028 D2
+      replaces with <code>environment_id</code>.</li>
+    <li>The model binding is resolved per turn from the latest <code>tier_binding</code>
+      (<code>context/service.py:213-225</code>), so ADR-0028's "run pins its full context at start" is
+      a behaviour change in <code>context</code>, not just a run column, and it moves
+      <code>prefix_key</code>.</li>
+    <li>Skill promotion today mutates <code>SkillVersion.stage</code> under a row lock
+      (<code>modules/skills/service.py:78</code>) &mdash; a version <em>moves</em> between stages. That
+      is not ADR-0028 D5's immutable-artifact-plus-pointer shape; the rail replaces it with
+      per-environment binding rows and keeps the receipted-compensator story.</li>
+    <li>Nothing resembling a connector, endpoint, credential, sink or dataset generation exists
+      anywhere in <code>backend/</code> (scout grep over the tree) &mdash; ADR-0028 D7 and the dataset
+      axis are greenfield, which is what decision card D3 is about.</li>
+    <li>The chat screen's spec exists and is precise: <code>$V/20-specs/design-handoff/README.md</code>
+      plus the Screen 1 mock, with a full token table as prose (<code>README.md:47-55</code>) and
+      <strong>no machine-readable token file</strong> (zero <code>:root</code>/<code>var(--)</code>
+      hits in the handoff) &mdash; transcribing tokens is authoring work, named in wave C2.</li>
+    <li>The front-end stack is recorded nowhere as a decision; the factory rules already presume
+      React + TypeScript (<code>.claude/rules/typescript.md:23</code>; AGENTS.md Gates: "Biome and tsc
+      land with the first TypeScript"). Decision card D1.</li>
+    <li>The whole web surface today is six routes and four SSE event kinds
+      (<code>serve.py:56</code>; <code>runs/router.py:44,55,71</code>;
+      <code>governance/router.py:33,42</code>; <code>declare/ledger.py:60,110</code>). There is no
+      thread list, no run-state read, no transcript-on-load, and no cancel route &mdash; though
+      <code>cancel()</code> is implemented and tested at the kernel seam
+      (<code>runs/service.py:210</code>) and the parked entry's own trigger, "the Phase 2 surface
+      wave", has fired (<code>$V/90-meta/open-questions.md:97</code>).</li>
+    <li><code>core.run</code> carries no title, pinned flag or preview
+      (<code>store/models.py:149-179</code>); the thread list needs data the schema does not have.</li>
+    <li>The together-rule is an open suggestion you reaffirmed today
+      (<code>$V/90-meta/suggestions.md:99</code> + your Telegram reply): every wave below names its
+      verification surface; the factory-file edit itself lands through <code>curate-fold</code> at
+      wave start, not silently here.</li>
+    <li>Brief sizing: wave 11 (+292/&minus;44 over 9 files) finished in one implementer dispatch;
+      the roughly double-sized briefs of waves 9&ndash;10 hit the 50-turn cap five times (session log
+      2026-08-31). Waves below are cut to wave-11 size, which is why the count is fifteen.</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="num">3</span>Decisions for you</h2>
+  <p>
+    Six cards. D1&ndash;D3 gate the first waves; D4&ndash;D6 gate later slices and can settle now or
+    when their wave arrives. Everything else in this plan is a taste call I have made and marked in
+    the text, correctable at any gate.
+  </p>
+
+  <div class="decision">
+    <h3>D1: The front-end stack &mdash; one-time, before the first screen <span class="settled-mark">Settled 2026-08-31</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> Phase 2 works front-end and back-end together; slice 1 carries
+      "the one-time front-end foundation (stack, tokens, Biome/tsc gates)". The stack itself was
+      never recorded as a decision. <strong>What we recommend:</strong> Vite + React 19 + TypeScript
+      strict, Biome for lint/format, Sofia Sans self-hosted; dependencies held to react, react-dom
+      and vite itself &mdash; no router, state or i18n library until a screen demonstrably needs one
+      (the shell has five module rows, not five hundred routes; interface strings live in our own
+      dictionary module from day one so Bulgarian is a data change). <strong>Why:</strong> the
+      factory rules are already written for exactly this &mdash; <code>typescript.md</code> names
+      React and the React Compiler, AGENTS.md reserves Biome and tsc &mdash; and the design handoff
+      says "recreate pixel-perfectly" in whatever stack the codebase picks; React is where agent
+      fluency and the component-catalogue shape (primitives/patterns) meet cheapest. Server-rendered
+      HTMX would be thinner code but fights the catalogue's component model, the SSE-driven thread,
+      and the i18n growth rule. <strong>What we might be missing:</strong> a lighter framework
+      (Svelte 5, Solid) would render the same screens with less runtime; the cost is rewriting the
+      settled TypeScript rules and losing the React Compiler assumption baked into them.
+      <strong>Cost if wrong:</strong> the design system is plain CSS tokens + typed components; the
+      screens are thin over six routes. A stack swap later rewrites <code>frontend/src</code> but
+      touches zero backend code.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="d1" value="Vite + React 19 + TS strict, Biome, minimal deps" checked disabled><span><span class="name">Vite + React 19 + TypeScript strict <span class="rec">Recommended</span></span>
+          <span class="note">Biome + tsc as the two gates; Sofia Sans self-hosted; react + react-dom + vite and nothing else until a screen needs it.</span></span></label>
+        <label class="opt"><input type="radio" name="d1" value="Server-rendered: FastAPI templates + htmx" disabled><span><span class="name">Server-rendered (FastAPI templates + htmx)</span>
+          <span class="note">No node toolchain at all &mdash; but the component catalogue, the live SSE thread and +1/3 text growth all push client-side; the TS rules would sit unused.</span></span></label>
+        <label class="opt"><input type="radio" name="d1" value="Svelte 5 + TS" disabled><span><span class="name">Svelte 5 + TypeScript</span>
+          <span class="note">Less runtime, same screens &mdash; at the price of rewriting the settled React-shaped rules and forgoing what the agents are most fluent in.</span></span></label>
+      </div>
+      <div class="outcome"><strong>Settled 2026-08-31</strong> &mdash; owner's green light on the page ("Go ahead", no card overridden): the front-end stack is Vite + React 19 + TypeScript strict with Biome and tsc as the gates, Sofia Sans self-hosted, dependencies held to react, react-dom and vite until a screen needs more.</div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <h3>D2: The four new chat routes &mdash; kernel routes or declared operations? <span class="settled-mark">Settled 2026-08-31</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> (via the settled structure) "one declared operation surfaces as
+      agent tool, HTTP route and UI action alike" (<code>system-structure.md:84</code>) &mdash; the
+      scout flagged that the new routes could be read as owing that path. <strong>What we
+      recommend:</strong> plain kernel routes in <code>runs/router.py</code>, exactly like the three
+      that exist: GET /threads, GET /runs/{id}, GET /runs/{id}/transcript, POST /runs/{id}/cancel.
+      <strong>Why:</strong> the declaration path is for <em>operations</em> &mdash; consequential
+      writes that commit actions with receipts and reversal stories (governance's two routes are
+      declarations because deciding and undoing are exactly that). Three of the four are reads with
+      nothing to receipt, and cancel is the person's lifecycle act on their own run, already
+      implemented and tested at the kernel seam &mdash; the same class as POST /threads and
+      /messages, which are kernel routes today. Wrapping reads as declared operations would put
+      list-my-threads into every agent's L5 tool budget for no one's benefit. <strong>What we might
+      be missing:</strong> if a later surface wants agents themselves to browse threads, that read
+      becomes an operation then &mdash; additive, no migration. <strong>Cost if wrong:</strong> four
+      route bodies move behind declarations later; the URL surface stays.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="d2" value="Kernel routes like the existing three" checked disabled><span><span class="name">Kernel routes, like the existing three <span class="rec">Recommended</span></span>
+          <span class="note">Reads and lifecycle beside create/send/events in <code>runs/router.py</code>; declarations stay what they are &mdash; consequential, receipted writes.</span></span></label>
+        <label class="opt"><input type="radio" name="d2" value="Declared operations for all four" disabled><span><span class="name">Declared operations for all four</span>
+          <span class="note">Uniform with <code>system-structure.md:84</code> &mdash; but reads gain actions no one audits and every agent's tool block grows by four entries.</span></span></label>
+      </div>
+      <div class="outcome"><strong>Settled 2026-08-31</strong> &mdash; owner's green light on the page ("Go ahead", no card overridden): the four chat routes are kernel routes beside the existing three; declarations stay the receipted write path. His margin question asked for the unconstrained architectural best — the answer, delivered in session, matches: reads and lifecycle acts have nothing to receipt.</div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <h3>D3: How literally to take D12's foundations list &mdash; dataset generations and connector bindings <span class="settled-mark">Settled 2026-08-31</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> on the environments page you settled D12 as "Phase 2 opens with
+      one environments-foundations wave &mdash; Environment entity and per-org set, environment
+      scoping + RLS, run pinning, fail-closed connector bindings, minimal promotion/refresh
+      receipts". <strong>What we recommend:</strong> build the rail in full now (Environment rows,
+      two-plane seed, scoping + two-key RLS, scope-carrying FKs, run pinning, receipted promotion) and
+      let two named pieces wait for their first consumer: the dataset-generation table and refresh
+      receipt land with the first business-data module (memory, or CRM), and the connector-binding
+      table lands with the first external connector (a skill with tools, or the Telegram surface)
+      &mdash; each recorded in ADR-0028 as sequenced, not skipped. <strong>Why:</strong> today there
+      is no connector and no business dataset (premise 8): both tables would ship with zero rows,
+      zero callers and a test that only proves the placeholder exists &mdash; the deletion test fails
+      on day one. The retrofit-hostile part of ADR-0028 is the scoping columns, and those all land
+      now. Fail-closed needs a caller to fail. <strong>What we might be missing:</strong> a first
+      consumer might arrive mid-slice and pay a small design round then; that is the sequencing cost
+      you already accepted for scale. <strong>Cost if wrong:</strong> two additive tables and one
+      migration, no data movement &mdash; cheap in either direction.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="d3" value="Rail now; dataset + connector tables with first consumer" checked disabled><span><span class="name">Rail now; the two consumer-less tables with their first consumer <span class="rec">Recommended</span></span>
+          <span class="note">Everything retrofit-hostile lands in wave E0; dataset generation and connector bindings are sequenced behind named triggers, ADR-0028 amended to say so.</span></span></label>
+        <label class="opt"><input type="radio" name="d3" value="Full D12 list now including placeholders" disabled><span><span class="name">The full D12 list now, placeholders included</span>
+          <span class="note">Word-faithful to the card &mdash; at the price of two empty tables whose first real consumer may still reshape them.</span></span></label>
+      </div>
+      <div class="outcome"><strong>Settled 2026-08-31</strong> &mdash; owner's green light on the page ("Go ahead", no card overridden): the rail lands in full now; the dataset-generation and connector-binding tables wait for their first consumer (memory slice; first external connector), recorded in ADR-0028 as sequenced, not skipped.</div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <h3>D4: What "chat finished" contains &mdash; and where the roadmap's extras land <span class="settled-mark">Settled 2026-08-31</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> "I would rather make sure that we have personal chat sorted" ;
+      the roadmap's Phase 2 also lists compaction with session summaries, file attachments, admin v0
+      and the multi-language UI (<code>$V/docs/roadmap/index.md</code>, Phase 2).
+      <strong>What we recommend:</strong> the chat slice ships the designed screen with what the
+      spine already does &mdash; converse, steer, approve, undo, cancel, wake, transcript on load.
+      Attachments and compaction come <em>after</em> the memory slice, as the two named waves X1 and X2
+      in section 6 (compaction writes session summaries, which is librarian machinery); admin v0
+      rides the skills slice (the Admin Agents screen is its surface); interface strings are externalised from the first component, and the
+      Bulgarian translation pass is Phase 2's closing wave. <strong>Why:</strong> each extra lands
+      where its machinery lives, and the chat screen reaches your hands weeks earlier.
+      <strong>What we might be missing:</strong> attachments may prove more urgent than skills in
+      real use &mdash; reorder then; slices are independent by construction. <strong>Cost if
+      wrong:</strong> ordering only; nothing here closes a door.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="d4" value="Chat = screen over the spine; extras land with their machinery" checked disabled><span><span class="name">Chat = the screen over today's spine; extras land with their machinery <span class="rec">Recommended</span></span>
+          <span class="note">Attachments + compaction as waves X1/X2 after memory; admin v0 with skills; Bulgarian as the closing wave.</span></span></label>
+        <label class="opt"><input type="radio" name="d4" value="Chat slice includes attachments and compaction" disabled><span><span class="name">Chat slice carries attachments and compaction too</span>
+          <span class="note">"Finished" in the fullest sense &mdash; but compaction without the librarian invents throwaway summary storage, and every later slice waits.</span></span></label>
+      </div>
+      <div class="outcome"><strong>Settled 2026-08-31</strong> &mdash; owner's green light on the page ("Go ahead", no card overridden): chat finished = the designed screen over today's spine; attachments and compaction are waves X1/X2 after memory; admin v0 rides the skills slice; Bulgarian is the closing wave.</div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <h3>D5: Front-end factory wiring &mdash; the parked fork whose trigger fires with wave C2 <span class="settled-mark">Settled 2026-08-31</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> (parked in open questions, 2026-08-30) where the design-language
+      doc lives, whether the skill is called <code>frontend-design</code> or <code>surface-design</code>,
+      and whether Frontend UX is a mode of the implementer or its own agent.
+      <strong>What we recommend:</strong> the entry's own leaning, unchanged: the skill keeps the name
+      <code>frontend-design</code>, Frontend UX stays a mode of the implementer (the skill fires on any
+      task line under <code>frontend/</code>), and the design-language reference stays the design
+      handoff in the vault (<code>$V/20-specs/design-handoff/</code>) with the repo-side rules living
+      in the skill itself &mdash; no new doc, no new agent. <strong>Why:</strong> roster freeze &mdash;
+      a new agent needs a hard invariant behind it or the same failure twice; there has been no
+      front-end failure yet at all. <strong>What we might be missing:</strong> if browser-qa rounds
+      keep failing on visual fidelity, a dedicated design-reviewer becomes the second-failure case
+      &mdash; that is the reopen trigger. <strong>Cost if wrong:</strong> renames and one agent file,
+      factory-side only.
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="d5" value="Keep frontend-design, implementer mode, handoff as the reference" checked disabled><span><span class="name">Keep <code>frontend-design</code>; implementer mode; the handoff is the reference <span class="rec">Recommended</span></span>
+          <span class="note">No new agent, no new doc; the open-questions entry closes with a pointer here.</span></span></label>
+        <label class="opt"><input type="radio" name="d5" value="Dedicated front-end agent + design-language doc" disabled><span><span class="name">A dedicated front-end agent and a design-language doc now</span>
+          <span class="note">More ceremony before the first screen exists; the roster-freeze rule asks what failure this answers.</span></span></label>
+      </div>
+      <div class="outcome"><strong>Settled 2026-08-31</strong> &mdash; owner's green light on the page ("Go ahead", no card overridden): the skill keeps the name frontend-design, Frontend UX stays a mode of the implementer, the design handoff in the vault is the reference; no new agent, no new doc.</div>
+    </div>
+  </div>
+
+  <div class="decision">
+    <h3>D6: Who is signed in &mdash; the auth story the chat screen shows <span class="settled-mark">Settled 2026-08-31</span></h3>
+    <p class="why">
+      <strong>What you said:</strong> Phase 1 settled "seeded users with bearer tokens, no login page"
+      (decision log 2026-08-30, D6) &mdash; and the Screen 1 mock shows a signed-in person by name.
+      <strong>What we recommend:</strong> a minimal sign-in screen in the product's own dress: paste
+      your access token once, the app keeps it for the browser session, GET /me returns your name and
+      org so the shell can greet you; sign-out forgets it. No passwords, no accounts, no sessions
+      table &mdash; the token row the backend already has. <strong>Why:</strong> it makes the
+      designed screen honest (a person, not a header value) at the cost of one small screen and one
+      read route, and it defers real authentication to the phase that needs it &mdash;
+      external principals are already its recorded owner. <strong>What we might be missing:</strong>
+      a stolen token is a signed-in person; acceptable on a dev deployment, restated when anything
+      faces the internet. <strong>Cost if wrong:</strong> one screen and one route, both kept even
+      under a real login later (the token screen becomes the fallback).
+    </p>
+    <div>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="d6" value="Token sign-in screen + GET /me" checked disabled><span><span class="name">Token sign-in screen + GET /me <span class="rec">Recommended</span></span>
+          <span class="note">The Phase 1 decision, given a face; real login arrives with external principals.</span></span></label>
+        <label class="opt"><input type="radio" name="d6" value="Keep the pasted header, no sign-in surface" disabled><span><span class="name">No sign-in surface; the token stays a pasted header</span>
+          <span class="note">Zero work &mdash; but the first thing anyone sees of the product is a raw token field with no name on the screen.</span></span></label>
+      </div>
+      <div class="outcome"><strong>Settled 2026-08-31</strong> &mdash; owner's green light on the page ("Go ahead", no card overridden): a token sign-in screen plus GET /me; real authentication arrives with external principals.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">4</span>Approaches considered</h2>
+  <p><strong>Chosen: the rail, then four vertical slices, fifteen wave-sized cuts.</strong> It beat two genuinely different shapes:</p>
+  <ul class="plain">
+    <li><strong>Minimal-viable &mdash; screens first, rail later.</strong> Build chat on today's
+      <code>run.stage</code> string and retrofit the Environment entity afterwards. Faster to the
+      first screen by roughly two waves; rejected because the scoping columns are the one
+      retrofit-hostile piece (ADR-0028's own sequencing argument: "the rail is laid before the first
+      business table") &mdash; every thread, event and action written before the rail would need a
+      backfill migration under live data.</li>
+    <li><strong>Ideal &mdash; the full ADR-0028 machine first.</strong> Environments, dataset
+      generations, connector bindings, masking and refresh in one sub-phase before any slice.
+      Rejected as sequencing waste: half the machinery has no consumer until memory or Phase 3
+      (premise 8), and the owner's lesson cuts the other way &mdash; user-observable work early,
+      back-end-only work bounded (D3 card).</li>
+    <li><strong>Lateral &mdash; ride the harness page harder.</strong> Skip the front-end foundation
+      this phase; grow <code>harness.html</code> into the product surface. Rejected: the harness is a
+      QA instrument by decision (2026-08-31), the designed screens exist and are speced to the pixel,
+      and hand-written single-file HTML is exactly what the component catalogue exists to replace.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">5</span>The environment rail &mdash; what migration 0003 lands and the shape choices inside it</h2>
+  <p>
+    These are the taste calls the scouts flagged as unrecorded, decided here so the wave briefs are
+    executable; each is correctable at review before its wave lands. The one-line frame:
+    <strong>content is org-global, activity is environment-scoped, and pointers connect them.</strong>
+  </p>
+  <ul class="plain">
+    <li><strong>The Environment row</strong> (<code>core.environment</code>): id, org_id, key
+      ("dev", "prod"), kind (dev | prod), protection_level, created_at; unique (org_id, key) and
+      UNIQUE (org_id, id) &mdash; the second is the referenced pair every composite scope FK below
+      points at, which Postgres requires to be unique. Seeded
+      two planes per org (ADR-0028 D2's small-org default); three is an insert, not a migration.</li>
+    <li><strong>Environment-scoped</strong> (gain <code>environment_id</code>, RLS keys on both):
+      <code>run</code> and its five children (step_queue, mailbox_message, checkpoint,
+      context_manifest, usage_record), <code>approval</code>, <code>event</code>, <code>action</code>,
+      <code>stream_head</code>, <code>idempotency_key</code> (its PK grows the new column &mdash; a
+      DEV replay must not eat a PROD reservation), and the new skill-binding table below.</li>
+    <li><strong>Org-global, deliberately</strong> (no environment column): user, principal,
+      user_token, role, grant, org itself &mdash; people and their permissions span planes; "who may
+      touch PROD" is the Environment row's protection_level enforced at promotion, not a second grant
+      system. And the <strong>artifacts</strong>: skill, skill_version, agent_definition stay
+      org-global &mdash; a version is content; <em>which version an environment runs</em> is the
+      env-scoped pointer. This also dissolves the scout's FK contradiction: the
+      <code>run &rarr; skill_version</code> cross-schema FK never crosses environments because the
+      version row has no environment.</li>
+    <li><strong>Promotion becomes a pointer flip</strong>: a new <code>mod_skills.skill_binding</code>
+      row per (org, environment, skill) naming the active version, org- and environment-scoped under
+      the same two-key RLS as the rest of the rail. <code>SkillVersion.stage</code> and its
+      mutate-under-lock promotion (premise 7) are replaced; <code>activate_version</code> keeps its
+      name, declaration and compensator story but flips the binding row &mdash; ADR-0028 D5's
+      immutable-artifact shape, receipted exactly as today.</li>
+    <li><strong>The session pins one environment</strong>: a third GUC beside org and principal
+      (<code>app.environment_id</code>), set by <code>store.session()</code>; RLS on env-scoped
+      tables fails closed when it is unset, mirroring the org predicate. <code>Scope</code> becomes
+      (org, environment, principal) and <code>tenants()</code> yields the pairs, so <code>work</code>
+      and <code>tick</code> iterate planes the way they iterate orgs today. The two recorded RLS
+      bypasses (<code>tenants()</code>, <code>resolve()</code>) keep their dated-workaround entries,
+      and E1 adds one narrow third of the same class: <code>locate(kind, id)</code>, the
+      scope-pair read an identifier-addressed HTTP call (run, approval or action id) needs before
+      it can open its environment-scoped session (detail in wave E1).</li>
+    <li><strong>The run pins at start</strong>: <code>run.environment_id</code> replaces
+      <code>run.stage</code>; <code>run.tier_binding_version</code> pins the model binding at create
+      (the <code>capability_ceiling</code> precedent &mdash; computed once, never widened), and
+      <code>context.assemble</code> reads the pin instead of the latest row, which is what makes a
+      binding bump promotion-safe for new runs only (ADR-0028 D5).</li>
+    <li><strong>Scope-carrying FKs</strong> (ADR-0028 D2), three constraints deep so the pair is
+      impossible to fake, not merely filtered: every env-scoped table's
+      (org_id, environment_id) is a composite FK onto <code>core.environment</code> (org_id, id) &mdash;
+      the pair must name a real plane of the same org; env-scoped parents gain
+      UNIQUE (org_id, environment_id, id) and <strong>every FK between two env-scoped rows becomes
+      composite on (org_id, environment_id, referenced id)</strong> &mdash; the five run children,
+      <code>run.parent_id</code>, the ledger pair (<code>action.event_id</code> and the deferred
+      <code>event.action_id</code>), <code>stream_head.last_event_id</code>,
+      <code>idempotency_key.action_id</code>, and <code>approval</code>'s references &mdash; so no
+      row points across planes; and <code>skill_binding</code>'s version reference is the composite
+      (skill_id, skill_version_id) onto <code>skill_version</code> (skill_id, id) &mdash; backed by
+      a new UNIQUE (skill_id, id) on <code>skill_version</code> in the same migration, since its
+      primary key alone cannot satisfy the composite FK &mdash; so a binding cannot pair one skill's
+      row with another skill's version.</li>
+    <li><strong>Thread create names its plane</strong>: POST /threads takes an optional environment
+      key, defaulting to the org's prod plane; the harness page grows a selector so QA lives on dev
+      without touching prod data.</li>
+    <li><strong>ADR upkeep in the same waves</strong>: ADR-0008's "org_id and nothing else" line is
+      amended by the wave that changes the policies; ADR-0028's mechanics clause absorbs the names
+      chosen here; ADR-0012's predicate-in-code becomes the Environment FK.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">6</span>The fifteen waves</h2>
+  <p>
+    Cut to the size wave 11 proved fits one implementer dispatch (premise 14). Every wave block ends
+    with <strong>Accept</strong> (pass/fail evidence) and <strong>Seen at</strong> (the surface a
+    person verifies it on &mdash; your together-rule); a back-end-only wave says so and is bounded to
+    what the acceptance suite proves. Allowed adjacent artifacts for every wave: its tests, its
+    migration, map-file updates (<code>INDEX.md</code>, <code>KERNEL.md</code>, <code>MODULE.md</code>,
+    <code>OPERATIONS.md</code>), ADR amendments named in its block, and a model-assumption-ledger
+    entry when one is introduced; anything else reads as unasked-for in review.
+  </p>
+
+  <div class="phase now"><h3>Wave E0: migration 0003 &mdash; the environment rail in DDL</h3>
+    <p class="maps">~400 lines (estimate, DDL + test updates) &middot; back-end only</p>
+    <ul class="plain">
+      <li><code>core.environment</code> as in section 5; <code>environment_id</code> on the eleven
+        env-scoped tables; (the RLS policy swap waits for E1, when the session
+        actually sets the environment GUC &mdash; flipping policies before that would lock every
+        existing session out);
+        UNIQUE (org_id, environment_id, id) on env-scoped parents and composite FKs on every
+        env-scoped-to-env-scoped reference (the full list in section 5); <code>idempotency_key</code> PK rebuilt with the new column;
+        <code>mod_skills.skill_binding</code> (org_id, environment_id, skill_id, skill_version_id;
+        unique per (org, environment, skill); two-key RLS like every env-scoped table); <code>run.environment_id</code> +
+        <code>run.tier_binding_version</code> added; backfill for dev-seeded rows (every existing row
+        to its org's prod plane). Binding backfill rule, deterministic and stated here for your
+        approval since the stage domain is DEV/QA/PROD while the default planes are two: PROD
+        &rarr; the prod plane, DEV and QA &rarr; the dev plane; where several versions of one skill
+        share a stage, the greatest version id wins (ORDER BY id DESC LIMIT 1) and the losers are
+        left unbound &mdash; on every deployment that exists today this maps exactly the seeded
+        versions, so the rule decides nothing in practice and exists to make the migration
+        deterministic anywhere. E0 is
+        <strong>expand-only</strong>: <code>run.stage</code> and <code>SkillVersion.stage</code> stay
+        until E2's code stops reading them &mdash; the same expand&nbsp;&rarr;&nbsp;contract
+        discipline the release doc demands of the product, applied to ourselves.</li>
+      <li>Grants and downgrade mirrored in the 0001/0002 house style; migration lint stays
+        green.</li>
+      <li>Test updates in the same wave: <code>tests/test_migration_0001.py</code> table sets,
+        <code>store/tests/test_tenancy.py</code> drift filter; ADR-0008 amendment text and the
+        ADR-0028 mechanics note ride along (vault edit listed in the brief).</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>alembic upgrade head</code>, <code>downgrade -1</code>,
+      <code>upgrade head</code> round-trip green; migration lint green; psql shows the environment
+      table seeded, every env-scoped table's new column backfilled and still <em>nullable</em>
+      (writers do not supply it until E1, so NOT NULL waits for 0004), single-key RLS policies
+      untouched, and the two <code>stage</code> columns still present &mdash; so the unchanged code
+      stays green on the expanded schema.
+      <strong>Seen at:</strong> nowhere yet by design &mdash; DDL only, bounded to the migration
+      round-trip and lint.</p>
+  </div>
+
+  <div class="phase"><h3>Wave E1: the scoped session, seed and the worker loop learn planes</h3>
+    <p class="maps">~350 lines (estimate) &middot; back-end only</p>
+    <ul class="plain">
+      <li>The request-scope carrier: an identifier-addressed call arrives before any environment
+        is known, and two-key RLS forbids looking it up from inside a scoped session. So one narrow
+        scope-pair lookup joins <code>resolve()</code> in the recorded ADR-0008 system-principal
+        read class: <code>locate(kind, id) &rarr; (org_id, environment_id)</code>, keyed by
+        <strong>run_id</strong> (/messages, /events, cancel), <strong>approval_id</strong>
+        (/approvals/{id}/decide) or <strong>action_id</strong> (/actions/{id}/undo) &mdash; all
+        three tables carry the pair after E0. Same superuser connection, returns nothing but the
+        pair, refused when the row's org is not the caller's; <code>serve.scoped</code> resolves
+        token &rarr; org, locates, then opens the session on the triple; a retry re-runs the same
+        pure read. Thread <em>creation</em> needs no lookup: it scopes to the org's prod plane by default from this wave &mdash;
+        the default E2 keeps, adding only the optional environment key that overrides it. The dated-workaround entry gains this one member (three key kinds, one
+        lookup) in the same wave.</li>
+      <li>Writer propagation, so the columns are actually filled: the eleven env-scoped tables'
+        ORM models gain the mapped <code>environment_id</code> column, and migration 0004 gives each
+        column a DB-side <strong>DEFAULT from the GUC</strong>
+        (<code>current_setting('app.environment_id')::uuid</code>) &mdash; every insert through a
+        scoped session carries its plane with no per-writer plumbing, child rows inherit the
+        session's scope (which equals the parent run's, pinned at create), and an insert from a
+        session without the GUC fails the NOT NULL: fail-closed for writes exactly as RLS is for
+        reads.</li>
+      <li>Migration 0004: the RLS policy swap &mdash; single-key policies on the eleven env-scoped
+        tables replaced by two-key ones &mdash; plus a straggler re-backfill and NOT NULL on the
+        environment columns, in this wave and not E0, because this is the wave whose sessions set
+        the GUC and whose writers now supply the column (previous bullet).</li>
+      <li><code>store.session()</code> takes the environment and sets the third GUC; <code>Scope</code>
+        becomes the triple in its two declarations (<code>tests/kit.py:35</code>,
+        <code>runs/work.py:43</code>); <code>tenants()</code> yields (org, environment, principal);
+        <code>work_once</code>/<code>tick_once</code> and <code>main.py</code> role loops iterate it.</li>
+      <li><code>seed()</code> writes the two Environment rows per org right after the Org flush and
+        carries their ids on <code>SeededOrg</code>; the printed seed line names both planes.</li>
+      <li>Tenancy tests grow the negative cases: unset environment GUC fails closed; a dev-plane
+        session cannot read a prod row of the same org (red first, then green).</li>
+    </ul>
+    <p><strong>Accept:</strong> full suite green on the two-key policies; psql shows two-key RLS on
+      every env-scoped table; the two new negative tests exist and were red before the fix commit
+      (commit order shows it). <strong>Seen at:</strong> nowhere yet &mdash;
+      bounded to the suite; the surface arrives one wave later.</p>
+  </div>
+
+  <div class="phase"><h3>Wave E2: pinned runs, pointer promotion, and a plane you can pick</h3>
+    <p class="maps">~300 lines (estimate) &middot; harness page + acceptance suite</p>
+    <ul class="plain">
+      <li>POST /threads takes the optional environment key (default: the org's prod plane); the run
+        row pins environment and tier_binding version at create; <code>context.assemble</code> reads
+        the pin (premise 6) and <code>prefix_key</code> incorporates it.</li>
+      <li><code>skills.activate_version</code> flips the (environment, skill) binding row instead of
+        mutating the version; compensator restores the prior binding; the directory query
+        (<code>bindables</code>) filters by the run's environment.</li>
+      <li>Migration 0005 (contract): <code>run.stage</code> and <code>SkillVersion.stage</code>
+        dropped, in this wave and not before, because this is the wave whose code stops reading
+        them.</li>
+      <li>The harness page grows the environment selector and shows the run's plane in the stream
+        header.</li>
+    </ul>
+    <p><strong>Accept:</strong> acceptance clause added: a thread on dev and a thread on prod in the
+      same org see disjoint data; a tier_binding bump mid-run does not move a running thread's model
+      (test asserts the pinned version); promotion writes its action and undo restores the prior
+      binding. <strong>Seen at:</strong> the harness page in a real browser &mdash; browser-qa run
+      naming the build: open a dev thread, see the plane label, promote a skill version, undo it.</p>
+  </div>
+
+  <div class="phase"><h3>Wave C1: the four chat routes and the thread-list data</h3>
+    <p class="maps">~350 lines (estimate) &middot; back-end only, one wave ahead of its screen</p>
+    <ul class="plain">
+      <li>Migration 0006 (additive): <code>run.title</code> (first user message, truncated; editable
+        later) and <code>run.pinned</code>.</li>
+      <li>Kernel routes per card D2: GET /threads (title, state, updated_at, pinned, open-approval
+        flag, last-line preview derived from the newest planned/mailbox text) &mdash; the one
+        cross-plane read: <code>core.environment</code> is org-scoped (single-key RLS), so serve
+        lists the org's planes and opens one scoped session per plane, merging the rows with each
+        thread's plane on it, which the screen shows as a badge and can filter by; a session opened
+        without an environment reads org-global tables only, every env-scoped table failing closed
+        by RLS; GET /runs/{id} (state,
+        environment, open approval id, undoable action ids &mdash; closing the two
+        "id only reaches the stream" gaps <code>runs/MODULE.md:14</code> names); GET
+        /runs/{id}/transcript (the worker's D4 rendering reused &mdash; same rows, same order, no
+        second renderer); POST /runs/{id}/cancel over the existing kernel seam
+        (open-questions.md:97, option (a), its trigger fired).</li>
+      <li>GET /me per card D6 (name + org for the shell).</li>
+    </ul>
+    <p><strong>Accept:</strong> acceptance tests: list shows a created thread with its title and
+      pending flag; state route returns the parked approval id; transcript equals what the D4
+      renderer feeds the model; cancel moves state and the SSE stream says so; suite green.
+      <strong>Seen at:</strong> bounded to the suite this wave; wave C3's browser run exercises every
+      one of these routes from the real screen.</p>
+  </div>
+
+  <div class="phase"><h3>Wave C2: the front-end foundation &mdash; tokens, primitives, gates</h3>
+    <p class="maps">~700 lines (estimate, mostly tokens + primitives) &middot; a styled exemplar page in the browser</p>
+    <ul class="plain">
+      <li><code>frontend/</code> per the settled tree (<code>system-structure.md:132-138</code>):
+        Vite + React 19 + TS strict per card D1; Biome config; <code>src/design-system/tokens/</code>
+        transcribed from the handoff's prose table (<code>README.md:47-55</code>, both palettes, the
+        stitch recipe, the two shadows); Sofia Sans self-hosted with Cyrillic subset.</li>
+      <li>The primitives Screen 1 composes (<code>Screen 1 mock:23</code>): Button, Field, State
+        chip, Meta line, Identity mark, App shell, Module patch header &mdash; each against the
+        component catalogue; <code>COMPONENTS.md</code> started; interface strings in the dictionary
+        module from the first component.</li>
+      <li>Factory wiring: AGENTS.md Gates gains the two front-end commands with their traps; the
+        <code>frontend-design</code> skill wakes (card D5); serve mounts <code>frontend/dist</code>
+        behind the harness route's sibling path.</li>
+      <li>One exemplar page rendering every primitive in both palettes &mdash; the
+        <code>frontend-design</code> skill's exemplar step.</li>
+    </ul>
+    <p><strong>Accept:</strong> <code>npx biome check</code> and <code>tsc --noEmit</code> green and
+      recorded as gates; the exemplar page serves from the app. <strong>Seen at:</strong> browser-qa
+      compares the exemplar against the Design System and Foundations mocks, both palettes, build
+      named.</p>
+  </div>
+
+  <div class="phase"><h3>Wave C3: the Personal-chat screen, live</h3>
+    <p class="maps">~800 lines (estimate) &middot; the designed screen in a real browser &mdash; the phase's first product moment</p>
+    <ul class="plain">
+      <li>Sign-in (token paste + /me, card D6), app shell with the five module rows, thread list pane
+        (pinned group, recent group, pending chips), the thread column: turns, meta lines, the
+        approval card wired to decide, the receipt with "Undo this" wired to undo, the running line
+        from run state, steering box to POST /messages, cancel; SSE via fetch with Last-Event-ID
+        (the harness page's proven reader, componentised).</li>
+      <li>Phone variant per the handoff (stacked actions, back arrow).</li>
+      <li>Patterns used land in <code>src/design-system/patterns/</code> + <code>COMPONENTS.md</code>
+        the same wave (map-outdated).</li>
+    </ul>
+    <p><strong>Accept:</strong> the twelve-step browser script passes: sign in &rarr; see threads
+      &rarr; open &rarr; converse &rarr; steer mid-run &rarr; approval card appears from the parked
+      event &rarr; approve &rarr; receipt appears &rarr; undo &rarr; cancel a second thread &rarr;
+      reload and the transcript is intact &rarr; wake the done thread. <strong>Seen at:</strong>
+      browser-qa full run on the built app against the Screen 1 mock, desktop and phone widths,
+      build named; the dead-thread class of bug this exists to catch.</p>
+  </div>
+
+  <div class="phase"><h3>Wave S1: skills end to end &mdash; author, publish, promote, approve</h3>
+    <p class="maps">~400 lines (estimate) &middot; back-end only, one wave ahead of its screen</p>
+    <ul class="plain">
+      <li>Declared operations completing the lifecycle over today's tables: draft a version, publish
+        it (immutable from publish), promote via the E2 binding flip &mdash; with promotion to a
+        protected environment gated <code>asks_first</code> through the existing approval machinery
+        (Environment.protection_level, section 5), and retire-not-delete (ADR-0028 D5: a retired
+        version is unselectable, readable to history).</li>
+      <li>Routes for the Admin surface to read: skill list with versions, bindings per environment,
+        promotion history from the ledger.</li>
+    </ul>
+    <p><strong>Accept:</strong> acceptance test: author &rarr; publish &rarr; promote to dev (no
+      approval) &rarr; promote to prod parks an approval &rarr; decide &rarr; binding flips with its
+      action &rarr; undo restores &rarr; retire refuses new bindings; suite green.
+      <strong>Seen at:</strong> bounded to the suite; wave S2's browser run drives the same lifecycle
+      from the screen.</p>
+  </div>
+
+  <div class="phase"><h3>Wave S2: the Admin Agents screen</h3>
+    <p class="maps">~500 lines (estimate) &middot; Screen 4 in the browser</p>
+    <ul class="plain">
+      <li>Screen 4 from the handoff over S1's routes: agents and their skills, versions per
+        environment, promote with the approval card, undo from the receipt &mdash; reusing C2/C3
+        primitives and patterns; admin v0 scope per card D4 (this screen, nothing more).</li>
+    </ul>
+    <p><strong>Accept:</strong> browser script: promote a version dev &rarr; prod from the screen,
+      approval card appears, approve, see the binding move, undo it. <strong>Seen at:</strong>
+      browser-qa against the Screen 4 mock, build named.</p>
+  </div>
+
+  <div class="phase"><h3>Wave A1: a delegated skill runs as a child</h3>
+    <p class="maps">~350 lines (estimate) &middot; back-end only</p>
+    <ul class="plain">
+      <li>Dispatching a delegated skill creates a child run (<code>run.parent_id</code> exists,
+        <code>0001:416-420</code>) in the parent's environment, under its own
+        <code>prefix_key</code>, tool set = declared operations &cap; acting grants &cap; parent
+        ceiling (ADR-0013); child completion posts its result to the parent's mailbox; child events
+        carry the parentage so a stream can nest them.</li>
+      <li>The ADR-0013 negative case stays: an inline skill with operations is refused at
+        publish.</li>
+    </ul>
+    <p><strong>Accept:</strong> acceptance test: parent turn invokes the delegated skill, child run
+      exists with the intersected ceiling, result reaches the parent's next turn, both ledgers tie
+      the runs together; suite green. <strong>Seen at:</strong> bounded to the suite; A2 shows it.</p>
+  </div>
+
+  <div class="phase"><h3>Wave A2: the child run, visible in the thread</h3>
+    <p class="maps">~250 lines (estimate) &middot; the chat screen</p>
+    <ul class="plain">
+      <li>The thread column renders a child run as a nested block on the parent turn (catalogue
+        pattern; running chip while live, receipt hangs off it when it commits), fed by C1's
+        transcript + state routes extended with children.</li>
+    </ul>
+    <p><strong>Accept:</strong> browser script: converse until the agent delegates, watch the nested
+      block go running &rarr; done, parent answer arrives. <strong>Seen at:</strong> browser-qa on
+      the chat screen, build named.</p>
+  </div>
+
+  <div class="phase"><h3>Wave M1: memory &mdash; propose, curate, commit</h3>
+    <p class="maps">~450 lines (estimate) &middot; back-end only; the dataset-generation shape lands here per card D3</p>
+    <ul class="plain">
+      <li><code>mod_memory</code> grows ADR-0010's pair: propose operations for acting agents,
+        commit operations granted to the librarian principal; dossier rows with
+        <code>current_version_id</code> pointers and (introduced, retired) version columns; the D3
+        context contributor serves committed memory into the envelope with provenance.</li>
+      <li>The first business-data tables make card D3's trigger fire: the dataset-generation row and
+        the receipted refresh land here, minimal (a generation per environment, refresh = copy
+        committed dossiers + flip the binding).</li>
+    </ul>
+    <p><strong>Accept:</strong> acceptance test: agent proposes mid-thread, librarian commits, next
+      thread's envelope carries the fact with provenance, undo-the-commit removes it; dev-plane
+      refresh from prod masks nothing yet but flips atomically and writes its event; suite green.
+      <strong>Seen at:</strong> bounded to the suite; M2 shows it.</p>
+  </div>
+
+  <div class="phase"><h3>Wave M2: the knowledge screen, minimal</h3>
+    <p class="maps">~400 lines (estimate) &middot; a fifth screen, composed from the design system</p>
+    <ul class="plain">
+      <li>No mock exists for this screen (the design session's stretch item); it is composed from
+        C2's primitives and S2's list patterns: what the agent knows, by dossier, with pending
+        proposals for the librarian to commit or reject, and undo on a commit. The sidebar's
+        "Knowledge" label stands until the naming question resolves
+        (<code>open-questions.md:43</code>, unchanged by this plan).</li>
+    </ul>
+    <p><strong>Accept:</strong> browser script: see a committed fact, commit a pending proposal,
+      undo it. <strong>Seen at:</strong> browser-qa, build named &mdash; fidelity judged against the
+      component catalogue, not a mock.</p>
+  </div>
+
+  <div class="phase"><h3>Wave X1: file attachments</h3>
+    <p class="maps">~300 lines (estimate) &middot; the chat screen &middot; placed here per card D4</p>
+    <ul class="plain">
+      <li>A person attaches a file to a message; it is stored org- and environment-scoped, referenced
+        from the mailbox row, and reaches the model through the envelope; the thread renders it.
+        Brief firmed at dispatch against the tree the earlier waves leave.</li>
+    </ul>
+    <p><strong>Accept:</strong> acceptance test: attach &rarr; the next turn's manifest carries the
+      file reference; browser script: attach from the screen, see it in the thread.
+      <strong>Seen at:</strong> browser-qa on the chat screen, build named.</p>
+  </div>
+
+  <div class="phase"><h3>Wave X2: compaction with session summaries</h3>
+    <p class="maps">~250 lines (estimate) &middot; the chat screen &middot; placed here per card D4</p>
+    <ul class="plain">
+      <li>A long thread compacts: the librarian machinery from M1 writes the session summary as
+        curated memory, the transcript renderer folds it in, and the screen shows where the seam is.
+        Brief firmed at dispatch; this is why the wave sits after M1/M2.</li>
+    </ul>
+    <p><strong>Accept:</strong> acceptance test: a thread past the threshold compacts, the summary is
+      a dossier version with provenance, the next turn's prompt carries it; browser script: the
+      compaction marker renders. <strong>Seen at:</strong> browser-qa on the chat screen, build
+      named.</p>
+  </div>
+
+  <div class="phase"><h3>Wave T: Bulgarian, and the phase gate</h3>
+    <p class="maps">~200 lines + translations (estimate) &middot; every screen, both languages</p>
+    <ul class="plain">
+      <li>The dictionary module gains the Bulgarian set (AI-assisted, owner-reviewed per the public
+        copy rule); a language switch on the shell; the +1/3 growth rule checked where Bulgarian
+        strings exceed it.</li>
+      <li>Phase close: full acceptance suite + the browser scripts of C3/S2/A2/M2 re-run on one named
+        build; scrub-gate; the ff to <code>main</code> on your word.</li>
+    </ul>
+    <p><strong>Accept:</strong> both languages render every shipped screen without layout breaks at
+      phone width; all four browser scripts pass on the closing build. <strong>Seen at:</strong>
+      browser-qa closing run &mdash; the phase's SAT.</p>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">7</span>Reuse before create</h2>
+  <p>Every new part, and the closest existing part it beat:</p>
+  <ul class="plain">
+    <li><code>core.environment</code> &mdash; nothing existed; the closest part was
+      <code>run.stage</code>, a free-text column ADR-0028 D2 explicitly grew into rows. It is
+      consumed, not duplicated.</li>
+    <li><code>mod_skills.skill_binding</code> &mdash; replaces <code>SkillVersion.stage</code>
+      (deleted in the same migration); the receipted-flip pattern is reused from today's
+      <code>activate_version</code>, compensator and all.</li>
+    <li><code>run.tier_binding_version</code> pin &mdash; the <code>capability_ceiling</code>
+      compute-once pattern (<code>runs/service.py:82-86</code>), applied to a second field.</li>
+    <li>The four chat routes &mdash; extend <code>runs/router.py</code>; the transcript route reuses
+      the worker's D4 renderer rather than writing a second one; the SSE reader in the front end is
+      the harness page's proven fetch loop, componentised.</li>
+    <li>Promotion approval &mdash; the existing <code>asks_first</code> park/decide machinery
+      (<code>identity</code> + governance routes), pointed at one more operation; no new approval
+      kind.</li>
+    <li>Front-end primitives &mdash; authored once in C2 and consumed by every later screen; M2
+      composes entirely from existing parts.</li>
+    <li>New with no precedent, argued in their waves: the token transcription (the handoff has prose
+      only, premise 9), the dictionary module (i18n is a settled requirement; a library was rejected
+      under the dependency rule until a need shows), <code>mod_memory</code>'s dossier tables
+      (ADR-0010/0020's own shape, first build).</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">8</span>What is working well and is not touched</h2>
+  <ul class="plain">
+    <li>The declare path: registry, dispatch, commit/append, idempotency &mdash; column additions
+      only, no semantic change.</li>
+    <li>The context engine: layers, envelope slots, the manifest &mdash; E2 changes where the binding
+      is read from and D3-the-contributor plugs into the existing port (ADR-0027); the assembly
+      invariants stand.</li>
+    <li>The worker: claim predicate, run-row mutex, wake-on-done, checkpoint drain &mdash; untouched
+      beyond the Scope triple.</li>
+    <li>The model seam: <code>ModelRunner</code>, both adapters, budget check.</li>
+    <li>The harness page stays the QA instrument it is &mdash; E2's selector is its last planned
+      change; the product screens never grow out of it.</li>
+    <li>Alembic chain, gates, compose, Dockerfile, the acceptance-suite harnessing.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">9</span>Risks and numbers</h2>
+  <ul class="plain">
+    <li><strong>Size:</strong> fifteen waves, ~6,000 lines total by the per-wave estimates above
+      (each marked estimate; firmed per wave by the brief). Phase 1 landed eleven waves; this is the
+      same order of magnitude with a front end in it.</li>
+    <li><strong>The widest blast radius is E0/E1</strong>: eleven tables re-policied and the Scope
+      triple threads through work, tick, serve and every test fixture. Mitigation: the rail is three
+      cut waves with the suite green between each, and the 23-table list lives in three places the
+      brief names (premise 4's migration, the migration test, ORM metadata) so none drifts.</li>
+    <li><strong>Pinning moves <code>prefix_key</code></strong> (premise 6): every cached prefix mints
+      anew at E2. One-time cache-miss cost on a dev deployment: accepted, noted in the manifest
+      telemetry.</li>
+    <li><strong>First front-end wave under a new toolchain</strong>: C2 is deliberately screen-less
+      (tokens + primitives + exemplar) so toolchain risk lands before product risk; browser-qa's
+      exemplar read is the early warning.</li>
+    <li><strong>Estimate risk on C3</strong> (~800 lines): if the brief will not cut to one dispatch,
+      it splits (shell + list, then thread column) per the standing rule &mdash; split, not
+      stretched.</li>
+    <li><strong>Model-assumption ledger</strong>: no new entries expected; the D4/D6 envelope
+      machinery is unchanged. A wave that adds one names it in its report.</li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">10</span>What happens when you say go</h2>
+  <ol>
+    <li>The six cards go to the decision log as dated lines; the open-questions entries this page
+      touches get their pointers (cancel-over-HTTP closes; the front-end wiring fork closes per D5;
+      the knowledge naming stays open, unchanged).</li>
+    <li><code>curate-fold</code> runs first, as every wave start does &mdash; seven suggestions are
+      open, including your together-rule (its AGENTS.md + plan-gate wording lands through the fold,
+      already honoured by this page) and the handoff-provenance rule.</li>
+    <li>Wave E0 worktree from <code>factory</code>; brief = its block plus section 5 and the premise
+      table; the loop per wave stays: implement &rarr; Codex on the diff &rarr; fold &rarr; gates
+      &rarr; land. Waves dispatch in order; a brief that missed something comes back to you only if
+      it moves a card's decision, otherwise it is folded and reported at the gate.</li>
+    <li>This page is exported through <code>scrub-gate</code> to <code>docs/plans/phase-2-slices/</code>
+      once settled, as Phase 2's public plan.</li>
+  </ol>
+  <p class="footnote">
+    Standing stops kept: nothing dispatches before your green light here; <code>main</code> moves
+    only on your word; review rounds are quality-bounded per your 2026-08-31 decision.
+  </p>
+</section>
+
+</main>
+</body>
+</html>
