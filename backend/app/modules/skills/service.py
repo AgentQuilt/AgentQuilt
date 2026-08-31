@@ -62,8 +62,13 @@ async def activate(
 
     The returned stage is what makes activation reversible: the action's
     compensator arguments are this result, so replaying the call restores it.
+    The lock is what keeps that true: two unlocked activations read the same
+    prior stage and one compensator restores a stage that was never replaced.
+    `populate_existing` because an identity-map hit answers without locking.
     """
-    version = await session.get_one(SkillVersion, skill_version_id)
+    version = await session.get_one(
+        SkillVersion, skill_version_id, with_for_update=True, populate_existing=True
+    )
     if version.execution_mode == INLINE and version.operations:
         raise ValueError(
             f"skill version {version.id} is inline and declares"
