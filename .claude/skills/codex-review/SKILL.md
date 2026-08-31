@@ -21,7 +21,7 @@ In the script; every doubt is FAIL. Only the tag grammar in the template counts.
 
 ## Stop rule
 
-Stop at PASS, or at no P1 with the remaining P2s accepted and written down. Round 4 is the cap: state the cost and stop; a fifth round runs only on the owner's word, given after the cost is stated. A degenerate round (cosmetic findings only, still FAIL) is discarded and re-run with a fresh prompt. An expanding frontier (consecutive FAILs each naming a new actor, a new file, or a new case in the same function) means the design shape is wrong: back to the plan, not another fold. The exception is a frontier of reviewer expectations against an unchanged function: that is answered by correcting the task statement, not by reopening the plan (owner, 2026-08-30).
+Stop at PASS, or at no P1 with the remaining P2s accepted and written down. Rounds are not cost-capped (owner, 2026-08-31): keep folding while each round names a real finding, and report the round count at the gate. The two stops that remain are quality-shaped. A degenerate round (cosmetic findings only, still FAIL) is discarded and re-run with a fresh prompt. An expanding frontier (consecutive FAILs each naming a new actor, a new file, or a new case in the same function) means the design shape is wrong: back to the plan, not another fold. The exception is a frontier of reviewer expectations against an unchanged function: that is answered by correcting the task statement, not by reopening the plan (owner, 2026-08-30).
 
 ## Error taxonomy
 
