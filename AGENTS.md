@@ -26,7 +26,7 @@ Specs, decisions and memory live in a private sibling vault; this repo holds mac
 4. `$V/docs/architecture/` — `design-rules.md`, `glossary.md`, `system-structure.md` (v1.1, settled) and ADRs 0001–0027.
 5. `$V/10-executive/` — vision, problem space, executive spec, principles, capabilities.
 
-Vault writes keep Obsidian conventions: YAML front-matter intact, wiki-links vault-internal (`\[\[90-meta/decision-log]]`) and resolving.
+Vault writes keep Obsidian conventions: YAML front-matter intact, wiki-links vault-internal (`\[\[90-meta/decision-log]]`) and resolving. A session-log section heading takes its time from `date -u` at write time, or from `git log --date=iso` for work already done, whoever the writer is.
 
 Never open or feed `$V/90-meta/ownership-roadmap.md` to any agent or prompt; it is owner-private and stays out of every sub-agent brief.
 
