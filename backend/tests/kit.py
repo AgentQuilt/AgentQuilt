@@ -11,6 +11,7 @@ from pydantic_ai.direct import model_request
 from pydantic_ai.messages import ModelRequest, UserPromptPart
 from pydantic_ai.models import ModelRequestParameters
 from pydantic_ai.models.function import FunctionDef, FunctionModel
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.kernel.context.service import AssembledTurn
@@ -24,9 +25,10 @@ from app.kernel.ports.context_contributor import (
     Turn,
 )
 from app.kernel.ports.model_runner import Binding, Completion
-from app.kernel.store.models import Skill, SkillVersion
+from app.kernel.declare.models import Action, Event, OperationVersion
+from app.kernel.store.models import AgentDefinition, Run, Skill, SkillVersion
 from app.kernel.store.seed import seed
-from app.kernel.store.service import Scope
+from app.kernel.store.service import Scope, session
 
 # No test in this suite may reach a provider; the fake below goes through
 # `FunctionModel`, which this flag does not gate.
@@ -154,6 +156,73 @@ async def sse_frames(
                     return frames
                 fields = {}
     raise AssertionError(f"{url} closed after {len(frames)} frames, wanted {count}")
+
+
+async def a_run(scope: Scope) -> UUID:
+    """One committed run, on the scope's own plane.
+
+    Journal events and approvals carry scope-carrying keys onto `core.run` as of
+    the environment rail, so a test that hangs either off a run needs a real one;
+    a fabricated id is no longer a stand-in.
+    """
+    async with session(*scope) as scoped:
+        definition = await scoped.scalar(select(AgentDefinition.id).limit(1))
+        assert definition is not None
+        run = Run(
+            id=uuid4(),
+            org_id=scope[0],
+            agent_definition_id=definition,
+            stage="DEV",
+            state="running",
+            budget_cap_tokens=1000,
+            prefix_key="pk",
+            capability_ceiling={},
+            prefix_profile="personal",
+        )
+        scoped.add(run)
+        await scoped.commit()
+        return run.id
+
+
+async def an_action(scope: Scope) -> UUID:
+    """One committed, irreversible action on the scope's plane.
+
+    Written as the pair rather than through dispatch, because the callers want
+    an action to address a route at, not a call to make; no compensator, so undo
+    refuses it the way it refuses any irreversible operation.
+    """
+    async with session(*scope) as scoped:
+        # The ledger is append-only: its two tables take inserts from one role.
+        await scoped.execute(text("SET LOCAL ROLE agentquilt_ledger_writer"))
+        version_id = await scoped.scalar(select(OperationVersion.id).limit(1))
+        assert version_id is not None
+        action_id = uuid4()
+        event = Event(
+            org_id=scope[0],
+            kind="operation_commit",
+            aggregate_kind="thing",
+            aggregate_id=uuid4(),
+            aggregate_version=1,
+            principal_id=scope[2],
+            payload={},
+            action_id=action_id,
+        )
+        scoped.add(event)
+        # The event first: the action points back at it, and the deferred pair
+        # settles at COMMIT.
+        await scoped.flush()
+        scoped.add(
+            Action(
+                id=action_id,
+                org_id=scope[0],
+                event_id=event.id,
+                operation_version_id=version_id,
+                idempotency_key=str(uuid4()),
+                decision_trace={},
+            )
+        )
+        await scoped.commit()
+        return action_id
 
 
 async def dev_skill_version(session: AsyncSession, org_id: UUID) -> str:

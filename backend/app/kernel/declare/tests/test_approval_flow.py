@@ -28,7 +28,7 @@ from app.kernel.declare.service import (
 from app.kernel.identity.models import Approval
 from app.kernel.store.service import session
 from app.modules.governance.service import NAME as DECIDE
-from tests.kit import START, FakeClock, Scope, two_principals
+from tests.kit import START, FakeClock, Scope, a_run, two_principals
 from tests.kit_notes import grant, note_table, notes_registry
 
 pytestmark = pytest.mark.anyio
@@ -156,7 +156,7 @@ async def _park(
 
 
 async def test_asks_first_opens_approval(scope: Scope, notes: Registry) -> None:
-    run, note_id = uuid4(), uuid4()
+    run, note_id = await a_run(scope), uuid4()
     parked = await _park(scope, notes, run, note_id, "tc-park")
 
     async with session(*scope) as scoped:
@@ -178,7 +178,7 @@ async def test_decide_approve_then_replay_commits(
     scope: Scope, notes: Registry
 ) -> None:
     clock = FakeClock()
-    run, note_id = uuid4(), uuid4()
+    run, note_id = await a_run(scope), uuid4()
     parked = await _park(scope, notes, run, note_id, "tc-approve")
 
     async with session(*scope) as scoped:
@@ -208,7 +208,7 @@ async def test_decide_approve_then_replay_commits(
 async def test_approval_binds_to_digest(scope: Scope, notes: Registry) -> None:
     """Approved args are the only args: changed ones spend nothing and ask again."""
     clock = FakeClock()
-    run, note_id = uuid4(), uuid4()
+    run, note_id = await a_run(scope), uuid4()
     parked = await _park(scope, notes, run, note_id, "tc-digest")
 
     async with session(*scope) as scoped:
@@ -233,7 +233,7 @@ async def test_decide_reject_then_replay_denies(
     scope: Scope, notes: Registry
 ) -> None:
     clock = FakeClock()
-    run, note_id = uuid4(), uuid4()
+    run, note_id = await a_run(scope), uuid4()
     parked = await _park(scope, notes, run, note_id, "tc-reject")
 
     async with session(*scope) as scoped:
@@ -259,7 +259,7 @@ async def test_decide_reject_then_replay_denies(
 async def test_expired_approval_denied(scope: Scope, notes: Registry) -> None:
     """Past `expires_at` an open approval buys nothing, and an expired one denies."""
     clock = FakeClock()
-    run, note_id = uuid4(), uuid4()
+    run, note_id = await a_run(scope), uuid4()
     parked = await _park(scope, notes, run, note_id, "tc-expire")
 
     async with session(*scope) as scoped:

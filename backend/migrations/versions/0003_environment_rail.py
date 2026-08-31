@@ -78,7 +78,10 @@ SCOPE_FK = (
     # Approval's two references carry no key today; on the rail they are
     # scope-carrying like the rest.
     ("approval", "run_id", "run", False),
-    ("approval", "consumed_by_action_id", "action", False),
+    # Deferred, like the event/action pair above and for the same reason:
+    # `identity.consume_approval` stamps the action id onto the approval before
+    # `ledger.commit` inserts that action, so the pair only settles at COMMIT.
+    ("approval", "consumed_by_action_id", "action", True),
 )
 
 # Two planes per org (ADR-0028 D2's small-org default); prod is the protected

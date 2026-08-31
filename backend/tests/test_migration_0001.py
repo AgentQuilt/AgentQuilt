@@ -65,8 +65,21 @@ def _connect(url: str) -> psycopg.Connection[Any]:
 
 
 def _as_role(url: str, role: str, org: uuid.UUID) -> psycopg.Connection[Any]:
+    """A connection scoped the way `store.session` scopes one: org and plane.
+
+    The plane is read here rather than passed in, because every caller wants the
+    org's prod one and the row is the deployment's, not the test's.
+    """
     conn = _connect(url)
-    conn.execute("SELECT set_config('app.org_id', %s, false)", (str(org),))
+    plane = conn.execute(
+        "SELECT id FROM core.environment WHERE org_id = %s AND kind = 'prod'", (org,)
+    ).fetchone()
+    assert plane is not None
+    conn.execute(
+        "SELECT set_config('app.org_id', %s, false),"
+        " set_config('app.environment_id', %s, false)",
+        (str(org), str(plane[0])),
+    )
     conn.execute(sql.SQL("SET ROLE {}").format(sql.Identifier(role)))
     return conn
 
@@ -97,6 +110,15 @@ def orgs(spine: str) -> tuple[uuid.UUID, uuid.UUID]:
                 " VALUES (%s, %s, %s)",
                 (uuid.uuid4(), org, f"user {label}"),
             )
+            # The two planes the deployment gives every org; activity is scoped
+            # to one of them, so an org without them can write nothing.
+            for key, protection in (("dev", 0), ("prod", 1)):
+                conn.execute(
+                    "INSERT INTO core.environment"
+                    " (id, org_id, key, kind, protection_level)"
+                    " VALUES (%s, %s, %s, %s, %s)",
+                    (uuid.uuid4(), org, key, key, protection),
+                )
         conn.commit()
     return org_a, org_b
 

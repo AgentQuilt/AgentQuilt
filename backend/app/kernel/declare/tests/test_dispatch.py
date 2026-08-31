@@ -16,7 +16,7 @@ from app.kernel.declare.models import Action, Event, OperationVersion
 from app.kernel.declare.registry import CallContext, Registry
 from app.kernel.declare.service import Call, Committed, Denied, Replayed, dispatch
 from app.kernel.store.service import session
-from tests.kit import Scope, two_principals
+from tests.kit import Scope, a_run, two_principals
 from tests.kit_notes import grant, note_table, notes_registry
 
 pytestmark = pytest.mark.anyio
@@ -89,8 +89,10 @@ async def test_retry_returns_stored_action(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
     org, environment, principal = scopes[0]
-    run, note_id = uuid4(), uuid4()
+    note_id = uuid4()
     call = _write(note_id, "first", "tc-retry")
+    # The same run across both passes: a retry is the same call replayed.
+    run = await a_run(scopes[0])
 
     async with session(org, environment, principal) as scoped:
         first = await dispatch(_ctx(scoped, principal, notes, run), call)
@@ -114,9 +116,10 @@ async def test_denied_call_writes_denial_event(
     (org_a, env_a, principal_a), (org_b, env_b, principal_b) = scopes
     note_id = uuid4()
 
+    run = await a_run(scopes[1])
     async with session(org_b, env_b, principal_b) as scoped:
         outcome = await dispatch(
-            _ctx(scoped, principal_b, notes, uuid4()),
+            _ctx(scoped, principal_b, notes, run),
             _write(note_id, "not allowed", "tc-denied"),
         )
         await scoped.commit()
@@ -163,16 +166,18 @@ async def test_version_conflict_rolls_the_operation_back(
     org, environment, principal = scopes[0]
     note_id = uuid4()
 
+    run = await a_run(scopes[0])
     async with session(org, environment, principal) as scoped:
         await dispatch(
-            _ctx(scoped, principal, notes, uuid4()),
+            _ctx(scoped, principal, notes, run),
             _write(note_id, "first", "tc-conflict-a"),
         )
         await scoped.commit()
 
+    run = await a_run(scopes[0])
     async with session(org, environment, principal) as scoped:
         outcome = await dispatch(
-            _ctx(scoped, principal, notes, uuid4()),
+            _ctx(scoped, principal, notes, run),
             _write(note_id, "second", "tc-conflict-b"),
         )
         await scoped.commit()
@@ -189,9 +194,10 @@ async def test_read_appends_audit_and_no_action(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
     org, environment, principal = scopes[0]
+    run = await a_run(scopes[0])
     async with session(org, environment, principal) as scoped:
         outcome = await dispatch(
-            _ctx(scoped, principal, notes, uuid4()),
+            _ctx(scoped, principal, notes, run),
             Call(operation_name=LIST, args={}, tool_call_id="tc-read"),
         )
         await scoped.commit()
@@ -220,9 +226,10 @@ async def test_compensator_args_are_the_result(
     org, environment, principal = scopes[0]
     note_id = uuid4()
 
+    run = await a_run(scopes[0])
     async with session(org, environment, principal) as scoped:
         written = await dispatch(
-            _ctx(scoped, principal, notes, uuid4()),
+            _ctx(scoped, principal, notes, run),
             _write(note_id, "compensate me", "tc-comp-write"),
         )
         await scoped.commit()
@@ -233,9 +240,10 @@ async def test_compensator_args_are_the_result(
     assert compensator_args is not None
     assert compensator_args == {"note_id": str(note_id)}
 
+    run = await a_run(scopes[0])
     async with session(org, environment, principal) as scoped:
         undone = await dispatch(
-            _ctx(scoped, principal, notes, uuid4()),
+            _ctx(scoped, principal, notes, run),
             Call(
                 operation_name=REMOVE,
                 args=compensator_args,
@@ -252,10 +260,11 @@ async def test_published_version_matches_action(
     scopes: tuple[Scope, Scope], notes: Registry
 ) -> None:
     org, environment, principal = scopes[0]
+    run = await a_run(scopes[0])
     async with session(org, environment, principal) as scoped:
         await notes.publish(scoped)
         outcome = await dispatch(
-            _ctx(scoped, principal, notes, uuid4()),
+            _ctx(scoped, principal, notes, run),
             _write(uuid4(), "published", "tc-published"),
         )
         await scoped.commit()

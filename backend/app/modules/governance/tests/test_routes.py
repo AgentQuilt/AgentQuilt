@@ -6,7 +6,6 @@ answers a route has to turn into HTTP: the operation's own result, and a refusal
 
 from __future__ import annotations
 
-from uuid import uuid4
 
 import httpx
 import pytest
@@ -17,7 +16,7 @@ from app.kernel.store.models import Principal
 from app.kernel.store.seed import SeededOrg, seed
 from app.kernel.store.service import session
 from app.modules.governance.service import UNDO
-from tests.kit import bearer_client
+from tests.kit import an_action, bearer_client
 from tests.kit_notes import grant
 
 pytestmark = pytest.mark.anyio
@@ -47,8 +46,14 @@ async def test_undo_route_returns_the_refusal(
     serve_url: str, orgs: tuple[SeededOrg, SeededOrg]
 ) -> None:
     granted, _ = orgs
+    # The route addresses a real action of this org: the scope carrier finds its
+    # plane before dispatch runs, and the operation refuses it for having no
+    # compensator, which is the refusal this route has to turn into a 200 body.
+    action_id = await an_action(
+        (granted.org_id, granted.prod_environment_id, granted.system_principal_id)
+    )
     async with _client(serve_url, granted) as client:
-        response = await client.post(f"/actions/{uuid4()}/undo")
+        response = await client.post(f"/actions/{action_id}/undo")
     assert response.status_code == 200
     assert response.json()["undo_run_id"] is None
 
@@ -57,7 +62,10 @@ async def test_ungranted_person_is_denied(
     serve_url: str, orgs: tuple[SeededOrg, SeededOrg]
 ) -> None:
     _, ungranted = orgs
+    action_id = await an_action(
+        (ungranted.org_id, ungranted.prod_environment_id, ungranted.system_principal_id)
+    )
     async with _client(serve_url, ungranted) as client:
-        response = await client.post(f"/actions/{uuid4()}/undo")
+        response = await client.post(f"/actions/{action_id}/undo")
     assert response.status_code == 403
     assert response.json()["detail"] == "no_grant"

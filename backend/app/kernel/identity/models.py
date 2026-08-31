@@ -73,7 +73,9 @@ class Approval(Base):
         Index("ix_approval_org_state", "org_id", "state"),
         environment_scope("approval"),
         scope_fk("approval", "run_id", "run"),
-        scope_fk("approval", "consumed_by_action_id", "action"),
+        # Deferred: the approval is stamped with the action id before the
+        # ledger inserts that action, so the pair settles at COMMIT.
+        scope_fk("approval", "consumed_by_action_id", "action", deferred=True),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)

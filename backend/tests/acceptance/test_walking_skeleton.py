@@ -521,10 +521,11 @@ async def test_org_b_cannot_read_or_steer(
 
     steered = await stranger.post(f"/runs/{run_id}/messages", json={"text": STEER})
     assert steered.status_code == 404
-    # Row-level security hides the run, so the stream has nothing to send and the
-    # reader waits until its own timeout rather than reading someone else's ledger.
-    with pytest.raises(httpx.ReadTimeout):
-        await sse_frames(stranger, f"/runs/{run_id}/events")
+    # The scope carrier looks the run's plane up before the stream opens, and a
+    # run of another org has none to find: refused outright rather than opened on
+    # a ledger with nothing in it for this reader.
+    async with stranger.stream("GET", f"/runs/{run_id}/events") as watched:
+        assert watched.status_code == 404
     # And the org that owns it reads the same stream without waiting.
     assert len(await sse_frames(person, f"/runs/{run_id}/events", count=2)) == 2
 

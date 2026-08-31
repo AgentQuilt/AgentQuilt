@@ -26,7 +26,7 @@ from app.kernel.declare.models import (
     StreamHead,
 )
 from app.kernel.store.service import session
-from tests.kit import Scope, two_principals
+from tests.kit import Scope, a_run, two_principals
 
 pytestmark = pytest.mark.anyio
 
@@ -211,6 +211,7 @@ async def test_append_writes_a_journal_event_without_action(
 ) -> None:
     (org, environment, principal), (other_org, other_env, other_principal) = scopes
     aggregate = uuid4()
+    run = await a_run(scopes[0])
     async with session(org, environment, principal) as scoped:
         event = await append(
             scoped,
@@ -220,7 +221,7 @@ async def test_append_writes_a_journal_event_without_action(
                 aggregate_id=aggregate,
                 principal_id=principal,
                 payload={"note": "started"},
-                run_id=uuid4(),
+                run_id=run,
                 step_no=1,
             ),
         )
