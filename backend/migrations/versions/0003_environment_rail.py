@@ -66,6 +66,9 @@ SCOPE_FK = (
     ("checkpoint", "run_id", "run", False),
     ("context_manifest", "run_id", "run", False),
     ("usage_record", "run_id", "run", False),
+    # The journal's nullable run reference carried no key in 0001; on the rail
+    # it is scope-carrying like approval's.
+    ("event", "run_id", "run", False),
     ("run", "parent_id", "run", False),
     ("action", "event_id", "event", False),
     # The 0002 pairing settles at COMMIT, in both directions.
