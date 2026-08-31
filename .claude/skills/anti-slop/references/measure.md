@@ -18,7 +18,7 @@ same number taken on the exemplar (code) or on the owner's own writing (prose). 
 - Passive-voice share: sentences matching `grep -ciE '\b(is|are|was|were|be|been|being) +[a-z]+(ed|en)\b'` over sentence count. Crude on purpose; a share, never a threshold.
 - Happy-talk share: classify each paragraph as content or filler by hand and report "N words, M (P%) filler". Counted, not graded.
 
-## Ledger entry (to file in `$V/docs/model-assumption-ledger.md`, the path `system-structure.md` reserves; the file does not exist yet)
+## Ledger entry (filed in `$V/docs/model-assumption-ledger.md` — the factory's ledger: assumptions about the agents that build the product. The product's own runtime assumptions live in `backend/docs/model-assumption-ledger.md`, filed per wave; the two never merge)
 
 Model-assumption ledger, 2026-08-24. Assumption: current-generation coding agents
 over-engineer and inflate under iteration; Opus 5 / Fable 5 as implementer, GPT-5.6 as
