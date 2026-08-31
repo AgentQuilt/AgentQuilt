@@ -5,6 +5,8 @@ The four walking-skeleton claims this wave owes: the dispatching process is
 the next step boundary and not inside one; and an approval nobody answers hands
 the step back with a denial rather than parking the run for good. The clock is
 injected everywhere, so a lease and a 72-hour expiry are assertions and not waits.
+The prompt's two message slots are here too, because the seam that keeps them
+apart — D4's watermark and D5/D6's drain — is the worker's.
 """
 
 from __future__ import annotations
@@ -14,7 +16,14 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
+from pydantic_ai.messages import (
+    ModelMessage,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    ToolCallPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.function import AgentInfo, FunctionDef
 from sqlalchemy import delete, func, select, text, update
 
@@ -22,7 +31,7 @@ from app.kernel.declare.models import Action, Event
 from app.kernel.declare.registry import CallContext, Registry
 from app.kernel.declare.service import Call as ToolCall, Committed, dispatch
 from app.kernel.identity.models import Approval, Grant
-from app.kernel.runs.models import Checkpoint, StepQueue
+from app.kernel.runs.models import Checkpoint, MailboxMessage, StepQueue
 from app.kernel.runs.service import cancel, create, events, send
 from app.kernel.runs.tick import EXPIRED, Pass, tick_once
 from app.kernel.runs.work import LEASE, PLANNED, Claimed, claim, step, work_once
@@ -37,6 +46,8 @@ WRITE = "note.write_note"
 REMOVE = "note.remove_note"
 NOTE = "We land on the higher price."
 STEER = "Write the note about where we landed on pricing."
+AGAIN = "And who else needs to know?"
+REPLY = "The note is written."
 _NOTE_BODY = text("SELECT body FROM mod_test.note WHERE id = :id")
 
 
@@ -90,11 +101,19 @@ def _proposes(operation_name: str, note_id: UUID) -> FunctionDef:
     return reply
 
 
-def _answers() -> FunctionDef:
-    """A model that proposes nothing, which is how a run reaches `done`."""
+def _answers(seen: list[str]) -> FunctionDef:
+    """A model that proposes nothing, which is how a run reaches `done`, and
+    keeps the envelope slices it was handed so a test can read them."""
 
     def reply(messages: list[ModelMessage], info: AgentInfo) -> ModelResponse:
-        return ModelResponse(parts=[TextPart("The note is written.")])
+        request = messages[0]
+        assert isinstance(request, ModelRequest)
+        seen.extend(
+            str(part.content)
+            for part in request.parts
+            if isinstance(part, UserPromptPart)
+        )
+        return ModelResponse(parts=[TextPart(REPLY)])
 
     return reply
 
@@ -168,7 +187,7 @@ async def test_action_runs_in_worker(setup: Setup) -> None:
         ) == 2
 
     # And a turn that proposes nothing ends the run.
-    assert await _work(setup, _answers(), FakeClock()) == "done"
+    assert await _work(setup, _answers([]), FakeClock()) == "done"
 
 
 async def test_crash_replay_no_duplicate(setup: Setup) -> None:
@@ -342,3 +361,30 @@ async def test_expired_approval_requeues_step(setup: Setup) -> None:
         assert denials[-1]["reason"] == "approval_unavailable"
         assert denials[-1]["state"] == EXPIRED
         assert denials[-1]["approval_reason"] == EXPIRED
+
+
+async def test_transcript_holds_the_earlier_turns_only(setup: Setup) -> None:
+    """A message to a finished run wakes it, and the next prompt carries the
+    conversation so far in D4 with this step's own message in D6 — no message in
+    both, because the drain's watermark is exactly the transcript's ceiling."""
+    run_id = await _run(setup)
+    first: list[str] = []
+    assert await _work(setup, _answers(first), FakeClock()) == "done"
+    # The first step has no conversation behind it, so it contributes no D4.
+    assert first == [f"[steer] {STEER}"]
+
+    async with session(*setup.scope) as scoped:
+        assert isinstance(await send(scoped, run_id, AGAIN), MailboxMessage)
+        await scoped.commit()
+    async with session(*setup.scope) as scoped:
+        run = await scoped.get_one(Run, run_id)
+        assert run.state == "queued"
+        assert await scoped.scalar(
+            select(StepQueue.step_no).where(StepQueue.run_id == run_id)
+        ) == 2
+
+    seen: list[str] = []
+    assert await _work(setup, _answers(seen), FakeClock()) == "done"
+    transcript, intake = seen
+    assert transcript == f"[person] {STEER}\n\n[agent] {REPLY}"
+    assert intake == f"[steer] {AGAIN}"

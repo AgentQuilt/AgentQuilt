@@ -20,10 +20,11 @@ from app.kernel.ports.context_contributor import Layer, PrefixSlot, Scope
 WEB_THREAD_CONTRACT = (
     "Surface: a web chat thread. Your reply streams to the person as plain text;"
     " make it direct and complete. New messages can arrive between steps; they"
-    " appear in your intake, oldest first, each tagged with its kind. To act,"
-    " propose the declared operations you were given; a call that needs approval"
-    " parks until a person answers, and you continue from its recorded result."
-    " When you have nothing further to propose, answer and stop."
+    " appear in your intake, oldest first, each tagged with its kind. The"
+    " conversation so far is in front of you; continue it rather than starting"
+    " over. To act, propose the declared operations you were given; a call that"
+    " needs approval parks until a person answers, and you continue from its"
+    " recorded result. When you have nothing further to propose, answer and stop."
 )
 
 

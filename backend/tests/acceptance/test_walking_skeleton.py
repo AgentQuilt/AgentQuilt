@@ -41,7 +41,7 @@ from app.kernel.declare.registry import registry
 from app.kernel.identity.models import Approval
 from app.kernel.model.adapter import PydanticAIModelRunner
 from app.kernel.model.models import UsageRecord
-from app.kernel.runs.models import Checkpoint, StepQueue
+from app.kernel.runs.models import Checkpoint, MailboxMessage, StepQueue
 from app.kernel.runs.service import cancel, create
 from app.kernel.runs.work import PARKED, PLANNED, work_once
 from app.kernel.store.models import AgentDefinition, Principal, Run, SkillVersion
@@ -64,6 +64,7 @@ pytestmark = pytest.mark.anyio
 WORKER = "acceptance"
 SAYS = "Promoting that version."
 STEER = "Promote the new skill version."
+AGAIN = "And who did that affect?"
 CALL = "call-1"
 KEY_VAR = "OPENROUTER_API_KEY"
 # Long enough that a stream with something to say has said it; short enough that
@@ -557,6 +558,67 @@ async def test_cancel_and_budget(
     assert frames[-1]["event"] == "denial"
     assert _payload(frames[-1])["reason"] == "budget_exceeded"
 
+
+async def test_thread_holds_a_conversation(
+    space: Deployment, person: httpx.AsyncClient
+) -> None:
+    """A finished thread is spoken to again, and answers as the same thread.
+
+    ADR-0022: a conversation is a run. The second message wakes the run it was
+    sent to and queues the next step, and that step's prompt carries both the
+    first message and the first reply, so the agent continues rather than
+    meeting the person for the first time.
+    """
+    run_id = await _thread(person)
+    assert await _work(space, _records([])) == "done"
+
+    again = await person.post(f"/runs/{run_id}/messages", json={"text": AGAIN})
+    assert again.status_code == 202
+    async with session(*space.scope) as scoped:
+        run = await scoped.get_one(Run, run_id)
+        queued = (
+            await scoped.scalars(
+                select(StepQueue.step_no).where(StepQueue.run_id == run_id)
+            )
+        ).all()
+    assert run.state == "queued"
+    assert list(queued) == [2]
+
+    seen: list[str] = []
+    assert await _work(space, _records(seen)) == "done"
+    prompt = "\n".join(seen)
+    assert STEER in prompt
+    assert SAYS in prompt
+    assert AGAIN in prompt
+    # Two steps, two plans: the thread's own stream is what a person re-reads.
+    frames = await sse_frames(person, f"/runs/{run_id}/events", count=3)
+    assert [_payload(one)["event"] for one in frames[1:]] == [PLANNED, PLANNED]
+
+
+async def test_steer_to_an_ended_thread_is_refused(
+    space: Deployment, person: httpx.AsyncClient
+) -> None:
+    """A cancelled thread refuses a message rather than swallowing it.
+
+    Nothing drains a cancelled run, so 202 would be a lie; the person is told
+    the thread has ended and the mailbox is left as the cancel found it.
+    """
+    run_id = await _thread(person)
+    async with session(*space.scope) as scoped:
+        assert await cancel(scoped, run_id) is True
+        await scoped.commit()
+
+    refused = await person.post(f"/runs/{run_id}/messages", json={"text": AGAIN})
+    assert refused.status_code == 410
+    assert refused.json()["detail"] == "the thread has ended"
+    async with session(*space.scope) as scoped:
+        seqs = (
+            await scoped.scalars(
+                select(MailboxMessage.seq).where(MailboxMessage.run_id == run_id)
+            )
+        ).all()
+    # Only the steer the thread opened with: the refused message wrote nothing.
+    assert list(seqs) == [1]
 
 
 @pytest.mark.skipif(

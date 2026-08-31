@@ -35,7 +35,7 @@ from app.kernel.declare.service import (
 from app.kernel.model import service as model
 from app.kernel.ports.model_runner import Completion, ModelRunner, ProposedCall
 from app.kernel.runs.models import Checkpoint, MailboxMessage, StepQueue
-from app.kernel.runs.service import AGGREGATE, QUEUE_TAG, post
+from app.kernel.runs.service import AGGREGATE, QUEUE_TAG, events, post
 from app.kernel.store.models import Json, Run
 from app.kernel.store.service import session as open_session
 
@@ -139,6 +139,9 @@ async def step(
             # could not be paid for either.
             budget_tokens=run.budget_cap_tokens,
             intake=_intake(drained),
+            # Strictly what earlier steps already read: the watermark is the
+            # drain's floor, so nothing is in both the transcript and the intake.
+            transcript=await _transcript(session, run.id, seen),
         ),
         registry=registry,
     )
@@ -477,13 +480,68 @@ def _intake(messages: Sequence[MailboxMessage]) -> str:
     person's steer from the kernel's own conflict notice. An empty mailbox is an
     empty intake: the prefix already says what the run is.
     """
-    lines: list[str] = []
-    for message in messages:
-        text = message.body.get("text")
-        body = (
-            text
-            if isinstance(text, str)
-            else json.dumps(message.body, sort_keys=True)
+    return "\n\n".join(f"[{one.kind}] {_body(one)}" for one in messages)
+
+
+def _body(message: MailboxMessage) -> str:
+    """A message on one line: its text, or the whole body when it has none."""
+    text = message.body.get("text")
+    return text if isinstance(text, str) else json.dumps(message.body, sort_keys=True)
+
+
+async def _transcript(session: AsyncSession, run_id: UUID, watermark: int) -> str:
+    """D4: the conversation so far, from rows the run already has.
+
+    The mailbox messages earlier steps drained, interleaved with what the agent
+    said at each of those steps, read off the `step.planned` events. Each
+    checkpoint's `mailbox_seq` is how far its step had read, which is what puts
+    a message before the reply it earned; a step worked twice keeps the plan
+    that settled it. A first step has no checkpoint and so no transcript.
+    """
+    worked = (
+        await session.execute(
+            select(Checkpoint.step_no, Checkpoint.state)
+            .where(Checkpoint.run_id == run_id)
+            .order_by(Checkpoint.step_no)
         )
-        lines.append(f"[{message.kind}] {body}")
+    ).all()
+    if not worked:
+        return ""
+    said = await _said(session, run_id)
+    messages = list(
+        await session.scalars(
+            select(MailboxMessage)
+            .where(MailboxMessage.run_id == run_id, MailboxMessage.seq <= watermark)
+            .order_by(MailboxMessage.seq)
+        )
+    )
+    lines: list[str] = []
+    read = 0
+    for step_no, state in worked:
+        seen = state.get("mailbox_seq")
+        upto = seen if isinstance(seen, int) else 0
+        while read < len(messages) and messages[read].seq <= upto:
+            message = messages[read]
+            # A person's steer reads as a person; the kernel's own notices keep
+            # the kind that says where they came from.
+            tag = "person" if message.kind == "steer" else message.kind
+            lines.append(f"[{tag}] {_body(message)}")
+            read += 1
+        reply = said.get(step_no)
+        if reply:
+            lines.append(f"[agent] {reply}")
     return "\n\n".join(lines)
+
+
+async def _said(session: AsyncSession, run_id: UUID) -> dict[int, str]:
+    """What the agent said at each step this run has worked, oldest plan first."""
+    said: dict[int, str] = {}
+    for event in await events(session, run_id):
+        text = event.payload.get("text")
+        if (
+            event.payload.get("event") == PLANNED
+            and event.step_no is not None
+            and isinstance(text, str)
+        ):
+            said[event.step_no] = text
+    return said

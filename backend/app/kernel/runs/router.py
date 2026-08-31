@@ -17,7 +17,7 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel
 from sqlalchemy import select
 
-from app.kernel.runs.service import create, events, send
+from app.kernel.runs.service import Ended, create, events, send
 from app.kernel.store.models import AgentDefinition
 from app.kernel.store.service import session
 from app.serve import Scoped, Who
@@ -54,10 +54,17 @@ async def open_thread(db: Scoped) -> Thread:
 
 @router.post("/runs/{run_id}/messages", status_code=status.HTTP_202_ACCEPTED)
 async def steer_run(run_id: UUID, message: Message, db: Scoped) -> Posted:
-    """One message into the run's mailbox; the next step drains it."""
+    """One message into the run's mailbox; the next step drains it.
+
+    A run that has already answered wakes on this message; a cancelled or
+    failed one is gone, and 410 says so rather than accepting a message nothing
+    would ever read.
+    """
     posted = await send(db, run_id, message.text)
     if posted is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no such run")
+    if isinstance(posted, Ended):
+        raise HTTPException(status.HTTP_410_GONE, "the thread has ended")
     return Posted(seq=posted.seq)
 
 

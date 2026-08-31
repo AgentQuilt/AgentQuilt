@@ -82,13 +82,15 @@ class Call:
     """What the caller knows and the run row does not carry.
 
     `budget_tokens` is the prompt budget the envelope is dropped against;
-    `intake` is this turn's message, until `surfaces` owns D6. The tier binding
+    `intake` is this turn's message and `transcript` the conversation before it,
+    both rendered by the worker until `surfaces` owns D4 and D6. The tier binding
     is not here on purpose: assembly resolves it from the run's tier, so the key
     and the later provider call cannot disagree about it.
     """
 
     budget_tokens: int
     intake: str
+    transcript: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +143,7 @@ async def assemble(
     prefix_tokens = sum(tokens(layer.body) for layer in prefix)
     turn = Turn(run_id=run.id, step_no=step_no)
     kept, dropped = _fit(
-        await _envelope(session, scope, turn, call.intake),
+        await _envelope(session, scope, turn, call),
         prefix_tokens,
         call.budget_tokens,
     )
@@ -265,14 +267,29 @@ def _prefix_key(prefix: tuple[PrefixLayer, ...], bound: TierBinding) -> str:
 
 
 async def _envelope(
-    session: AsyncSession, scope: Scope, turn: Turn, intake: str
+    session: AsyncSession, scope: Scope, turn: Turn, call: Call
 ) -> tuple[Slice, ...]:
-    """D6 is the kernel's until `surfaces` owns it; D5, the mailbox drain, is the
-    worker's (wave 8) and has no rows to read in Phase 1."""
+    """D4 and D6 are the kernel's until `surfaces` owns them, both rendered by
+    the worker (`runs/work.py`); D5, the mailbox drain, is the worker's too and
+    has no rows to read in Phase 1.
+
+    D4 is priority 1 and D6 priority 0, so a turn that will not fit drops the
+    conversation so far before it drops the message it has to answer. A first
+    step has no conversation, and an empty transcript contributes no slice.
+    """
     slices = [
-        Slice(slot="D6", body=intake, provenance=f"{SURFACE}:intake", priority=0)
+        Slice(slot="D6", body=call.intake, provenance=f"{SURFACE}:intake", priority=0)
     ]
-    owners = {"D6": _KERNEL}
+    if call.transcript:
+        slices.append(
+            Slice(
+                slot="D4",
+                body=call.transcript,
+                provenance=f"{SURFACE}:transcript",
+                priority=1,
+            )
+        )
+    owners = {"D4": _KERNEL, "D6": _KERNEL}
     for contributor in ENVELOPE_CONTRIBUTORS:
         for part in await contributor.slices(session, scope, turn):
             if part.slot not in contributor.envelope_slots:

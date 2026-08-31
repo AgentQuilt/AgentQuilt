@@ -9,6 +9,7 @@ written here — is what makes another org's run invisible.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select, update
@@ -19,7 +20,7 @@ from app.kernel.declare.models import Event
 from app.kernel.declare.registry import Stage
 from app.kernel.identity.models import Approval
 from app.kernel.identity.service import effective_grants
-from app.kernel.runs.models import MailboxMessage, StepQueue
+from app.kernel.runs.models import Checkpoint, MailboxMessage, StepQueue
 from app.kernel.store.models import AgentDefinition, Json, Run, SkillVersion
 
 # The run's aggregate in the ledger, and the two journal events this module writes.
@@ -31,6 +32,18 @@ FIRST_STEP = 1
 QUEUE_TAG = "main"
 # Cancel closes what a person could still answer; the rest are already settled.
 _ANSWERABLE = ("requested", "open")
+# The two states a message cannot re-open: a cancel is a person's decision and a
+# failure needs eyes. Wake is `done` only.
+_ENDED = ("cancelled", "failed")
+
+
+@dataclass(frozen=True, slots=True)
+class Ended:
+    """What `post` answers for a thread that has ended: the message is refused
+    and nothing is written, so the route can say so instead of accepting it."""
+
+
+ENDED = Ended()
 
 
 async def create(
@@ -101,26 +114,33 @@ async def create(
 
 async def send(
     session: AsyncSession, run_id: UUID, text: str
-) -> MailboxMessage | None:
-    """Steer a live run, or None when this org has no such run."""
+) -> MailboxMessage | Ended | None:
+    """Steer a run: the message, `ENDED` when the thread has ended, or None
+    when this org has no such run."""
     return await post(session, run_id, "steer", {"text": text})
 
 
 async def post(
     session: AsyncSession, run_id: UUID, kind: str, body: Json
-) -> MailboxMessage | None:
+) -> MailboxMessage | Ended | None:
     """One message into a run's mailbox, or None when this org has no such run.
 
     The lock on the run row is what serialises `seq`: a second writer reads the
     first's message only after it lands, so the numbers cannot collide or gap.
-    The worker posts the kernel's own `conflict` notices through here, so there
-    is one allocator and not two.
+    It is also the lifecycle mutex (MODULE.md), so the state read under it is
+    the state the message lands against: a finished thread wakes, an ended one
+    refuses, and a live one is untouched — which is the path the worker's own
+    `conflict` notices take, since they only ever target a run mid-step.
     """
-    locked = await session.scalar(
-        select(Run.id).where(Run.id == run_id).with_for_update()
-    )
+    locked = (
+        await session.execute(
+            select(Run.id, Run.state).where(Run.id == run_id).with_for_update()
+        )
+    ).first()
     if locked is None:
         return None
+    if locked.state in _ENDED:
+        return ENDED
     seq = await session.scalar(
         select(func.coalesce(func.max(MailboxMessage.seq), 0) + 1).where(
             MailboxMessage.run_id == run_id
@@ -137,7 +157,42 @@ async def post(
     )
     session.add(message)
     await session.flush()
+    if locked.state == "done":
+        await _wake(session, run_id)
     return message
+
+
+async def _wake(session: AsyncSession, run_id: UUID) -> None:
+    """A finished thread speaks again: `done -> queued` plus the next step.
+
+    The guarded-update-and-insert `tick._continue` uses: the queue row goes in
+    only when the update matched, so the run's state and the work waiting on it
+    can never disagree. The step number carries on from the run's last
+    checkpoint, which a `done` run always has.
+    """
+    woken = await session.scalar(
+        update(Run)
+        .where(Run.id == run_id, Run.state == "done")
+        .values(state="queued", updated_at=func.now())
+        .returning(Run.id)
+        .execution_options(synchronize_session=False)
+    )
+    if woken is None:
+        return
+    step_no = await session.scalar(
+        select(func.coalesce(func.max(Checkpoint.step_no), 0) + 1).where(
+            Checkpoint.run_id == run_id
+        )
+    )
+    session.add(
+        StepQueue(
+            org_id=UUID(session.info["org"]),
+            run_id=run_id,
+            step_no=step_no,
+            queue_tag=QUEUE_TAG,
+        )
+    )
+    await session.flush()
 
 
 async def events(
